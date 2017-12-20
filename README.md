@@ -1,9 +1,9 @@
-#Multi PvD Development Environment
+# Multi PvD Development Environment
 
 This repository provides an environment to help developers working on multi-PvD
 related projects.
 
-##HowTo
+## HowTo
 
 Start by bootstraping the environment.
 ```shell
@@ -25,8 +25,8 @@ First install the required dependencies.
 ```
 
 Then, create the VM (This takes a while).
-You may see the installation progress using vnc (The address is displayed by the
-script).
+You may see the installation progress using vnc with password pvd (The address 
+is displayed by the script).
 ```shell
 ./vms/linux-env.sh vm create
 ```
