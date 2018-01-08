@@ -226,7 +226,6 @@ function install_kernel() {
 	cp $KERNEL_SRC_DIR/linux-*.deb $TMP/mount/tmp/
 	sudo chroot $TMP/mount/ dpkg -i -R /tmp/ || /bin/true
 	sudo chroot $TMP/mount/ sed -i 's/^GRUB_HIDDEN/#&/' /etc/default/grub
-	sudo chroot $TMP/mount update-grub
 	rm $TMP/mount/tmp/*.deb
 	
 	sudo umount $TMP/mount/proc
@@ -250,7 +249,7 @@ function ssh_host_vm () {
 scl_cmd_add vm start start_host_vm
 function start_host_vm {
 	IP_ADDRESS=$(scl_local_ip)
-	
+
 	[ ! -e "$VM_DRIVE" ] && scl_askyn "Create VM ?" && create_host_vm
 	[ ! -e "$VM_DRIVE" ] && { echo "VM Driver does not exist" && return 1; }
 	vm_is_running && echo "VM is already running, accessible via vnc://$IP_ADDRESS:$VM_VNC_PORT/ with passwd 'pvd'" && return 1
