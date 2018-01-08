@@ -26,15 +26,89 @@ UBUNTU_ISO=http://archive.ubuntu.com/ubuntu/dists/zesty/main/installer-amd64/cur
 UBUNTU_MIRROR=""
 
 KERNEL_SRC_DIR=$ROOT/src/linux-env/
+KERNEL_PATCH_DIR=$ROOT/src/pvd-kernel-path/
+KERNEL_LOCAL_VERSION="thierry-pvd"
 
 PRESEED_FILE=$CD/preseed.cfg
 PRESEED_CUSTOM_FILE=$CD/preseed-custom.cfg
 
+PVD_KERNEL_PATCH=https://github.com/IPv6-mPvD/pvd-linux-kernel-patch.git
+PVD_RADVD=https://github.com/IPv6-mPvD/radvd.git
+PVD_PVDD=https://github.com/IPv6-mPvD/pvdd.git
+
 scl_cmd_add install dep install_dep
 function install_dep {
+	sudo apt-get install git kernel-wedge libssl-dev gawk libudev-dev pciutils-dev byacc flex linux-tools-common libncurses5-dev
 	sudo apt-get install qemu-kvm libvirt-bin ubuntu-vm-builder bridge-utils build-essential
 	sudo apt-get build-dep linux-image-$(uname -r)
 }
+
+scl_cmd_add kernel download download_kernel
+function download_kernel {
+	# this function downloads the kernel src to $KERNEL_SRC_DIR
+	if [ ! -d $KERNEL_SRC_DIR/linux-ubuntu-zesty ]; then
+		mkdir -p $KERNEL_SRC_DIR
+		git clone git://kernel.ubuntu.com/ubuntu/ubuntu-zesty.git $KERNEL_SRC_DIR/linux-ubuntu-zesty
+	else
+		scl_askyn "Kernel source repo already exist, do you want to clean it?" && clean_kernel
+	fi
+}
+
+scl_cmd_add kernel patch patch_kernel
+function patch_kernel {
+	# this function patchs the kernel src in $KERNEL_SRC_DIR
+	if [ ! -d $KERNEL_PATCH_DIR ]; then
+		mkdir -p $KERNEL_PATCH_DIR
+		git clone $PVD_KERNEL_PATCH $KERNEL_PATCH_DIR
+	elif scl_askyn "Kernel path already exist, do you want to enfore the new one?"; then
+		rm -rf $KERNEL_PATCH_DIR
+		mkdir -p $KERNEL_PATCH_DIR
+		git clone $PVD_KERNEL_PATCH $KERNEL_PATCH_DIR
+	fi
+
+	if [ -d $KERNEL_SRC_DIR/linux-ubuntu-zesty ]; then
+		clean_kernel
+		cd $KERNEL_SRC_DIR/linux-ubuntu-zesty
+		patch -p1 < $KERNEL_PATCH_DIR/patch* 
+	else
+		echo "Kernel source is absent, patching failed." && return 1
+	fi
+}
+
+scl_cmd_add kernel clean clean_kernel
+function clean_kernel {
+	# this function reset the kernel src repo to git head and removes or untracked files
+	cd $KERNEL_SRC_DIR/linux-ubuntu-zesty
+	git reset --hard
+	git clean -fd
+	rm -f .config
+}
+
+scl_cmd_add kernel config configure_kernel
+function configure_kernel {
+	# this function configures the kernel
+	# it seems the kernel config can be already done with proper kernel patch?
+	cd $KERNEL_SRC_DIR/linux-ubuntu-zesty
+	if [ -f .config ]; then
+		echo "Set local kernel version to $KERNEL_LOCAL_VERSION and enable pvd"
+		make olddefconfig
+		sed -i "s/^CONFIG_LOCALVERSION.*/CONFIG_LOCALVERSION=\"$KERNEL_LOCAL_VERSION\"/" .config
+		sed -i 's/^CONFIG_NETPVD.*/CONFIG_NETPVD=y/' .config
+	else
+		echo "Something must have gone wrong with the kernel patching" && return 1
+	fi
+}
+
+scl_cmd_add kernel bltpkg build_kernel
+function build_kernel {
+	configure_kernel
+	cd $KERNEL_SRC_DIR/linux-ubuntu-zesty
+	n_core=$(grep -c ^processor /proc/cpuinfo)
+	echo "Now compiling the kernel with all your $n_core cores. It's going to take a while."
+	let n_core++
+	make -j$n_core deb-pkg
+}
+
 
 scl_cmd_add kernel compile compile_kernel
 function compile_kernel {
@@ -139,27 +213,25 @@ EOF
 }
 
 scl_cmd_add kernel install install_kernel
-function install_kernel {
+function install_kernel() {
 	mkdir -p $TMP/mount
-	pkg="$KERNEL_SRC_DIR/linux-image-4.10.0-40-generic_4.10.0-40.44_amd64.deb"
-	
-	if [ ! -e $pkg ]; then
-		compile_kernel
-		[ ! -e $pkg ] && echo "Package not found" && return 1
-	fi
-	
-	qcow2_mount $VM_DRIVE $TMP/mount
+
+	scl_qcow2_mount $VM_DRIVE $TMP/mount
 	sudo mount -o bind /proc $TMP/mount/proc
 	sudo mount -o bind /dev  $TMP/mount/dev
 	
 	mkdir -p $TMP/mount/tmp/
-	cp $pkg $TMP/mount/tmp/$pkg
-	sudo chroot $TMP/mount/ dpkg -i /tmp/$pkg || /bin/true
-	rm $TMP/mount/tmp/$pkg
+	echo "Installing following complied .deb to the VM:"
+	ls -la $KERNEL_SRC_DIR | grep linux-.*.deb$
+	cp $KERNEL_SRC_DIR/linux-*.deb $TMP/mount/tmp/
+	sudo chroot $TMP/mount/ dpkg -i -R /tmp/ || /bin/true
+	sudo chroot $TMP/mount/ sed -i 's/^GRUB_HIDDEN/#&/' /etc/default/grub
+	sudo chroot $TMP/mount update-grub
+	rm $TMP/mount/tmp/*.deb
 	
 	sudo umount $TMP/mount/proc
 	sudo umount $TMP/mount/dev
-	qcow2_umount $TMP/mount
+	scl_qcow2_umount $TMP/mount
 }
 
 function vm_is_running {
@@ -177,11 +249,12 @@ function ssh_host_vm () {
 
 scl_cmd_add vm start start_host_vm
 function start_host_vm {
+	IP_ADDRESS=$(scl_local_ip)
+	
 	[ ! -e "$VM_DRIVE" ] && scl_askyn "Create VM ?" && create_host_vm
 	[ ! -e "$VM_DRIVE" ] && { echo "VM Driver does not exist" && return 1; }
-	vm_is_running && echo "VM is already running" && return 1
+	vm_is_running && echo "VM is already running, accessible via vnc://$IP_ADDRESS:$VM_VNC_PORT/ with passwd 'pvd'" && return 1
 	
-	IP_ADDRESS=$(scl_local_ip)
 	echo "vnc://$IP_ADDRESS:$VM_VNC_PORT/ with passwd 'pvd'"
 	sudo qemu-system-x86_64 -enable-kvm \
 		-monitor "telnet:127.0.0.1:$VM_TELNET_PORT,server,nowait" \
@@ -201,7 +274,7 @@ function start_host_vm {
 
 scl_cmd_add vm stop stop_host_vm
 function stop_host_vm {
-	! vm_is_running && echo "VM is already running" && return 1
+	! vm_is_running && echo "VM is already turned off" && return 1
 	sudo kill $(sudo cat $TMP/qemu.pid)
 }
 
