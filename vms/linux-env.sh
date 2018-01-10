@@ -1,20 +1,27 @@
 #!/bin/bash -e
-
-CD="$( cd "$( dirname $0 )" && pwd )"
+LAUNCH_DIR=$PWD
+# directory where this script sits
+CD="$( cd "$( dirname $0 )" && pwd )" 
 cd $CD
 
+# predefined module fetched by bootstrap.sh
 . ../scripts/scriptlib/scriptlib.sh
 scl_load_module net
 scl_load_module vms
 scl_load_module ui
 
+# the root directory of the project
 ROOT="$(realpath $CD/../)"
+# all things here are ephemeral
 TMP="$ROOT/tmp/linux-env"
+# where we put the VM disk
 RUN="$ROOT/run/linux-env"
 mkdir -p $TMP
 mkdir -p $RUN
 
+# VM disk name
 VM_DRIVE=$RUN/vm/disk.qcow2
+# VM specs, please configure according your hardware capability
 VM_RAM=8G
 VM_CPUS=8
 VM_DRIVE_SIZE=40G
@@ -22,22 +29,29 @@ VM_TELNET_PORT=12150
 VM_VNC_PORT=12250
 VM_MNGMT_PORT=12350
 
+# where to fetch the installation image for ubuntu
 UBUNTU_ISO=http://archive.ubuntu.com/ubuntu/dists/zesty/main/installer-amd64/current/images/netboot/mini.iso
 UBUNTU_MIRROR=""
 
+# where we put the kernel source code
 KERNEL_SRC_DIR=$ROOT/src/linux-env/
+# where we put the kernel patch
 KERNEL_PATCH_DIR=$ROOT/src/pvd-kernel-path/
+# the default kernel local version after patching
 KERNEL_LOCAL_VERSION="thierry-pvd"
 
+# VM setting
 PRESEED_FILE=$CD/preseed.cfg
 PRESEED_CUSTOM_FILE=$CD/preseed-custom.cfg
 
+# where to fetch path and other pvd related projects
 PVD_KERNEL_PATCH=https://github.com/IPv6-mPvD/pvd-linux-kernel-patch.git
 PVD_RADVD=https://github.com/IPv6-mPvD/radvd.git
 PVD_PVDD=https://github.com/IPv6-mPvD/pvdd.git
 
 scl_cmd_add install dep install_dep
 function install_dep {
+	# this function installs the necessary packages for VM installation and kernel compilation
 	sudo apt-get install git kernel-wedge libssl-dev gawk libudev-dev pciutils-dev byacc flex linux-tools-common libncurses5-dev
 	sudo apt-get install qemu-kvm libvirt-bin ubuntu-vm-builder bridge-utils build-essential
 	sudo apt-get build-dep linux-image-$(uname -r)
@@ -57,31 +71,37 @@ function download_kernel {
 scl_cmd_add kernel patch patch_kernel
 function patch_kernel {
 	# this function patchs the kernel src in $KERNEL_SRC_DIR
+	# first download patch
 	if [ ! -d $KERNEL_PATCH_DIR ]; then
 		mkdir -p $KERNEL_PATCH_DIR
 		git clone $PVD_KERNEL_PATCH $KERNEL_PATCH_DIR
-	elif scl_askyn "Kernel path already exist, do you want to enfore the new one?"; then
+	elif scl_askyn "Kernel patch already exists in $KERNEL_PATCH_DIR, do you want to enforce the new one?"; then
 		rm -rf $KERNEL_PATCH_DIR
 		mkdir -p $KERNEL_PATCH_DIR
 		git clone $PVD_KERNEL_PATCH $KERNEL_PATCH_DIR
 	fi
-
+	# then patch
 	if [ -d $KERNEL_SRC_DIR/linux-ubuntu-zesty ]; then
 		clean_kernel
 		cd $KERNEL_SRC_DIR/linux-ubuntu-zesty
 		patch -p1 < $KERNEL_PATCH_DIR/patch* 
 	else
-		echo "Kernel source is absent, patching failed." && return 1
+		echo "Kernel source is absent at $KERNEL_SRC_DIR/linux-ubuntu-zesty, patching failed." 
+		echo "Please consider first dowload it using option: $0 kernel download." 
+		cd $CD && return 1
 	fi
+
+	cd $CD
 }
 
 scl_cmd_add kernel clean clean_kernel
 function clean_kernel {
-	# this function reset the kernel src repo to git head and removes or untracked files
+	# this function reset the kernel src repo to git head and removes untracked files
 	cd $KERNEL_SRC_DIR/linux-ubuntu-zesty
 	git reset --hard
 	git clean -fd
 	rm -f .config
+	cd $CD
 }
 
 scl_cmd_add kernel config configure_kernel
@@ -95,23 +115,28 @@ function configure_kernel {
 		sed -i "s/^CONFIG_LOCALVERSION.*/CONFIG_LOCALVERSION=\"$KERNEL_LOCAL_VERSION\"/" .config
 		sed -i 's/^CONFIG_NETPVD.*/CONFIG_NETPVD=y/' .config
 	else
-		echo "Something must have gone wrong with the kernel patching" && return 1
+		echo "Something must have gone wrong with the kernel patching" && cd $CD && return 1
 	fi
+
+	cd $CD
 }
 
 scl_cmd_add kernel bltpkg build_kernel
 function build_kernel {
+	# this function compiles the kernel into .deb
 	configure_kernel
 	cd $KERNEL_SRC_DIR/linux-ubuntu-zesty
 	n_core=$(grep -c ^processor /proc/cpuinfo)
 	echo "Now compiling the kernel with all your $n_core cores. It's going to take a while."
 	let n_core++
 	make -j$n_core deb-pkg
+	cd $CD
 }
 
 
 scl_cmd_add kernel compile compile_kernel
 function compile_kernel {
+	# this function downloads the kernel source and compile it right away
 	if [ ! -d $KERNEL_SRC_DIR/linux-ubuntu-zesty ]; then
 		mkdir -p $KERNEL_SRC_DIR
 		git clone git://kernel.ubuntu.com/ubuntu/ubuntu-zesty.git $KERNEL_SRC_DIR/linux-ubuntu-zesty
@@ -120,11 +145,14 @@ function compile_kernel {
 	fi
 	cd $KERNEL_SRC_DIR/linux-ubuntu-zesty
 	fakeroot debian/rules binary-headers binary-generic binary-perarch
+
+	cd $CD
 }
 
 scl_cmd_add vm create create_host_vm
 function create_host_vm {
-	vm_is_running && echo "VM is already running" && return 1
+	# this function installs the VM from iso
+	vm_is_running && return 1
 	if [ -e "$VM_DRIVE" ]; then
 		echo "VM drive $VM_DRIVE exists."
 		if scl_askyn "Would you like to delete the disk and reinstall ?" ; then
@@ -178,7 +206,6 @@ EOF
 	
 	echo "Installation will now start. This can take a while."
 	echo "Connect to VNC with vnc://$IP_ADDRESS:$VM_VNC_PORT/ with passwd 'pvd' to see progress."
-	
 	sudo qemu-system-x86_64 -enable-kvm \
 		-monitor "telnet:127.0.0.1:$VM_TELNET_PORT,server,nowait" \
 		-cpu host -m $VM_RAM -smp $VM_CPUS \
@@ -210,10 +237,64 @@ EOF
 	done
 	
 	mv $TMP/vmdrive $VM_DRIVE
+
+	cd $CD
+}
+
+scl_cmd_add vm isoboot isoboot_vm
+function isoboot_vm() {
+	# this function boots the VM from an ISO image speficified as argument
+	# it is useful when it comes to boot repair
+	IP_ADDRESS=$(scl_local_ip)
+	cd $LAUNCH_DIR
+
+	[ ! -f $1 ] && echo "ISO file $1 does not exist" && cd $CD && return 1
+	
+	vm_is_running && cd $CD && return 1
+	
+	# suppose that if /dev/nbd0* is mounted, it must be with our qcow2 img
+	# it is though not necessarily true...
+	MOUNT_DIR=$(mount | grep -F "/dev/nbd0" | cut -d' ' -f3)
+	if [ ! $MOUNT_DIR = "" ]; then
+		echo "$VM_DRIVE is already mounted at $MOUNT_DIR."
+		if scl_askyn "Unmount $VM_DRIVE and then continue ?"; then
+			scl_qcow2_umount $MOUNT_DIR
+		else
+			cd $CD && return 1
+		fi
+	fi
+
+	echo "Booting VM with ISO: `realpath $1`"
+	echo "vnc://$IP_ADDRESS:$VM_VNC_PORT/ with passwd 'pvd'"
+	sudo qemu-system-x86_64 -enable-kvm \
+		-monitor "telnet:127.0.0.1:$VM_TELNET_PORT,server,nowait" \
+		-cpu host -m $VM_RAM -smp $VM_CPUS \
+		-drive file=$VM_DRIVE,format=qcow2,index=1 \
+		-cdrom $1 -boot d \
+		-display vnc=0.0.0.0:$(($VM_VNC_PORT - 5900)),password \
+		-vga std \
+		-device e1000,netdev=nat \
+		-netdev user,id=nat,hostfwd=tcp::$VM_MNGMT_PORT-:22 \
+		-net nic,model=virtio,macaddr=00:16:3e:00:01:01,netdev=nic-0 \
+		-netdev tap,id=nic-0,vhost=on \
+		-daemonize -pidfile $TMP/qemu.pid
+	
+	echo "change vnc password pvd" | nc -q 0 127.0.0.1 $VM_TELNET_PORT >/dev/null 2>&1
+	sudo chmod a+r $TMP/qemu.pid
+
+	cd $CD
 }
 
 scl_cmd_add kernel install install_kernel
 function install_kernel() {
+
+	if vm_is_running; then
+		if scl_askyn "Would like to turn off VM right now to continue ?"; then
+			stop_host_vm && sleep 0.5
+		else
+			return 1
+	fi
+
 	mkdir -p $TMP/mount
 
 	scl_qcow2_mount $VM_DRIVE $TMP/mount
@@ -233,9 +314,15 @@ function install_kernel() {
 	scl_qcow2_umount $TMP/mount
 }
 
+scl_cmd_add vm status vm_is_running
 function vm_is_running {
-	[ -f "$VM_DRIVE" ] && [ -f $TMP/qemu.pid ] && \
-		[ -e "/proc/$(cat $TMP/qemu.pid)" ]
+	if [ -f "$VM_DRIVE" ] && [ -f $TMP/qemu.pid ] && \
+		[ -e "/proc/$(cat $TMP/qemu.pid)" ]; then
+		local IP_ADDRESS=$(scl_local_ip)
+		echo "VM is already running, accessible via vnc://$IP_ADDRESS:$VM_VNC_PORT/ with passwd 'pvd'"
+	else
+		return 1
+	fi
 }
 
 scl_cmd_add vm ssh ssh_host_vm
@@ -252,7 +339,20 @@ function start_host_vm {
 
 	[ ! -e "$VM_DRIVE" ] && scl_askyn "Create VM ?" && create_host_vm
 	[ ! -e "$VM_DRIVE" ] && { echo "VM Driver does not exist" && return 1; }
-	vm_is_running && echo "VM is already running, accessible via vnc://$IP_ADDRESS:$VM_VNC_PORT/ with passwd 'pvd'" && return 1
+
+	# suppose that if /dev/nbd0* is mounted, it must be with our qcow2 img
+	# it is though not necessarily true...
+	local mount_dir=$(mount | grep -F "/dev/nbd0" | cut -d' ' -f3)
+	if [ ! $mount_dir = "" ]; then
+		echo "$VM_DRIVE is already mounted at $mount_dir."
+		if scl_askyn "Unmount $VM_DRIVE and then continue ?"; then
+			scl_qcow2_umount $mount_dir
+		else
+			cd $CD && return 1
+		fi
+	fi
+
+	vm_is_running && return 1
 	
 	echo "vnc://$IP_ADDRESS:$VM_VNC_PORT/ with passwd 'pvd'"
 	sudo qemu-system-x86_64 -enable-kvm \
