@@ -293,6 +293,7 @@ function install_kernel() {
 			stop_host_vm && sleep 0.5
 		else
 			return 1
+		fi
 	fi
 
 	mkdir -p $TMP/mount
@@ -373,7 +374,7 @@ function start_host_vm {
 
 scl_cmd_add vm stop stop_host_vm
 function stop_host_vm {
-	! vm_is_running && echo "VM is already turned off" && return 1
+	! vm_is_running &> /dev/null && echo "VM is already turned off" && return 1
 	sudo kill $(sudo cat $TMP/qemu.pid)
 }
 
