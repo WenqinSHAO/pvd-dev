@@ -1,12 +1,12 @@
 # Multi-PvD Development Environment
 
-This repository provides a series abstraction/automation to facilate the envrionement setting for mPvD related projects.
+This repository provides a series of abstraction/automation to facilate the envrionement setting for multi-PvD related projects.
 
 Following steps will create an ubuntu VM with pvd kernel patch.
 Instructions are as well given on how to install on that VM other pvd related tools, especially pvdd and radvd. 
 
 ## Warmup/Revision:
-If you know the answers to following questions, please do skip this section ;)
+If you know the answers to the following questions, please do skip this section ;)
 
 <details><summary>1. What is a PvD?</summary><p>
 A provision domain is a 'consistent set of networking configuration information'. For example, source address prefix, DNS server and default gateway that can work together. See more in <a href="https://tools.ietf.org/html/rfc7556">RFC7556</a>.
@@ -22,8 +22,8 @@ It especially tends to happen with IPv6, for the sake of address aggregation and
 <a href="https://tools.ietf.org/html/draft-ietf-intarea-provisioning-domains-00">draft-ietf-intarea-provisioning-domains</a> specifies a way to provision host with multiple PvDs by introducing a new IPv6 Router Advertisment (RA) option.</p>
 <p>We as well modified <a href="https://github.com/IPv6-mPvD/radvd.git">radvd</a> and <a href="https://github.com/IPv6-mPvD/odhcpd">odhcpd</a> so that they can be configured to announce RA containing PvD option.</p>
 <p><a href="https://github.com/IPv6-mPvD/wireshark">Wireshark</a> is now as well made capable of parsing RA with PvD option. Debugging made esay.</p>
-<p>Host side, we deliver a <a href="https://github.com/IPv6-mPvD/pvd-linux-kernel-patch">linux kernel patch</a> to make it aware of the PvD option in RA. Besides, an essential tool <a href="https://github.com/IPv6-mPvD/pvdd">pvdd</a> that organically groups configuration items of a single PvD together from various sources say RA and DHCP, is as well provided.</p>
-<p>For application developpers, a PvD-aware glibc now provides interfaces with which you can easily access to PvD datas tructure and bind your applications to a set of PvDs easily. TODO: todo add glibc repository.</p>
+<p>Host side, we deliver a <a href="https://github.com/IPv6-mPvD/pvd-linux-kernel-patch">linux kernel patch</a> to make the kernel aware of the PvD option in RA. Besides, an essential tool <a href="https://github.com/IPv6-mPvD/pvdd">pvdd</a> that organically groups configuration items of a single PvD together from various sources say RA and DHCP, is as well provided.</p>
+<p>For application developpers, a PvD-aware glibc now provides interfaces with which you can easily access PvD datatructures and bind your applications to a set of PvDs (so that the application uses the corresponding DNS servers , and that the kernel route the traffic appropriately). TODO: todo add glibc repository.</p>
 <p>TODO: one-liner for other projects as well.</p>
 </details>
 
@@ -37,7 +37,7 @@ It especially tends to happen with IPv6, for the sake of address aggregation and
     ├── linux-env.sh /* the major script we rely on */
     └── preseed.cfg
 ```
-After we've just cloned this repo, we will see directoreis anf files as shown above.
+After we've just cloned this repo, we will see directoreis and files as shown above.
 
 After performing operations specified here below, we expect to see a repo organized as follows:
 ```
@@ -53,7 +53,7 @@ After performing operations specified here below, we expect to see a repo organi
 |       `-- /* utility functions */
 |-- src
 |   |-- linux-env
-|   |   |-- linux-.*.deb /* deb package after kernel compilation */
+|   |   |-- linux-.*.deb /* deb packages after kernel compilation */
 |   |   `-- linux-ubuntu-zesty
 |           `- /* where kernel source code is stored */
 |   `-- pvd-kernel-path
@@ -65,11 +65,11 @@ After performing operations specified here below, we expect to see a repo organi
     |-- linux-env.sh /* the major script for following automation */
     `-- preseed.cfg
 ```
-The organization of the repo can be customized according to you preference by setting variables in [linux-env.sh](./vms/linux-env.sh) that we will briefly explain below.
+The organization of the repo can be customized according to you preference by setting variables in [linux-env.sh](./vms/linux-env.sh), which we will briefly explain below.
 
 ## Settings
 ### Repo settings
-The placement of kernel source, patch and VM disk can all be customized. They are all specified in the [linux-env.sh](./vms/linux-env.sh).
+The placement of kernel source, patch, VM disk and etc., can all be customized. They are all specified in the [linux-env.sh](./vms/linux-env.sh). Here below their default values.
 ```bash
 # directory where this script sits
 CD="$( cd "$( dirname $0 )" && pwd )" 
@@ -89,7 +89,7 @@ KERNEL_PATCH_DIR=$ROOT/src/pvd-kernel-path/
 KERNEL_LOCAL_VERSION="thierry-pvd"
 ```
 ### VM settings
-As mentioned earlier, we are going to creat a VM on which the experiment is going to be carried out. The specs of the VM can as well be customized according to your needs and constraints in [linux-env.sh](./vms/linux-env.sh).
+As mentioned earlier, we are going to creat a VM on which the experiments are carried out. The specs of the VM can as well be customized according to your needs and constraints in [linux-env.sh](./vms/linux-env.sh). Here below the default values.
 ```bash
 # VM specs, please configure according your hardware capability
 VM_RAM=8G
@@ -100,7 +100,7 @@ VM_VNC_PORT=12250
 VM_MNGMT_PORT=12350
 ```
 
-## Walk-through
+## Walk-through on environment setting
 ### Bootstraping
 Once git cloned this repository, start by bootstraping the environment.
 ```shell
@@ -126,13 +126,12 @@ Then, let's create the VM.
 ```shell
 ./vms/linux-env.sh vm create
 ```
-You may see the installation progress via vnc with password pvd (The address 
-is displayed by the script).
+You may see the installation progress via vnc with password pvd (a vnc link will be displayed).
 The whole thing can take a while.
 Don't sit there waiting, let's start preparing a PvD-aware kernel.
 
 ### PvD-aware kernel patch
-TODO: should the installation of PvD-aware glibc happen here as well?
+<!TODO: should the installation of PvD-aware glibc happen here as well?>
 
 While the VM is installing, let's download the kernel source code:
 ```shell
@@ -144,44 +143,41 @@ Once finished, let's patch the kernel source:
 ./vms/linux-env.sh kernel patch
 ```
 
-Then, let's compile the kernel and build .deb packages needed for installation.
+Then, let's compile the kernel and build .deb packages needed for kernel installation.
 ```shell
 ./vms/linux-env.sh kernel bltpkg
 ```
 This will take quite a while. Once finished, generated linux-.*.deb sit in $your_project_directory/src/linux-env/
 
-Now you have to wait till the VM is ready and turn it off, as we are going to install PvD-aware kernel pakages on it.
+Now you have to wait till the VM is ready and TURN IT OFF, as we are going to install PvD-aware kernel pakages on it.
 ```shell
 ./vms/linux-env.sh kernel install
 ```
 
-Once done, restart the VM, update the grub config by
+Once done, restart the VM, update the VM grub config by (in the VM shell not the host shell)
 ```shell
 sudo update-grub
 ```
 and then restart the VM again you will be able to select the PvD-aware kernel in the grub menu.
 
 ## VM manipulation
-In order to stop and start the VM, or connect using ssh, use:
+Apart from the above designed course, we offer as well commands to facilitate some common tasks concerning the VM.
 ```shell
-./vms/linux-env.sh vm start
-./vms/linux-env.sh vm ssh
-./vms/linux-env.sh vm stop
+./vms/linux-env.sh vm start /* turn on the VM */
+./vms/linux-env.sh vm ssh /* ssh to the VM */
+./vms/linux-env.sh vm stop /* turn off the VM */
+./vms/linux-env.sh vm isoboot path/to/an.iso /* boot the VM from optical driver containing the specified iso file */
+./vms/linux-env.sh vm status /* prints the vnc link to the VM if it is on, otherwise nothing */
 ```
+The boot-from-optical-driver command is pretty handy, when you screw up the grub config, and want to repair it through a boot-repair iso.
 
-The VNC link to see the VM desktop is always provided to you when you start the VM.
-
-## Install pvdd
-TODO
-
-## Install Glibc
-TODO
-
-## Install radvd
-TODO
-
-## Other PvD related projects
-TODO
+## Brief guide on initiating other mPVD projects
+<!TODO>
+### Install pvdd
+### Install Glibc
+### Install radvd
+### Install Wireshark
+### Other PvD related projects
 
 
 
