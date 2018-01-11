@@ -32,6 +32,7 @@ VM_MNGMT_PORT=12350
 # where to fetch the installation image for ubuntu
 UBUNTU_ISO=http://archive.ubuntu.com/ubuntu/dists/zesty/main/installer-amd64/current/images/netboot/mini.iso
 UBUNTU_MIRROR=""
+UBUNTU_KERNEL_GIT=http://kernel.ubuntu.com/git/ubuntu/ubuntu-artful.git
 
 # where we put the kernel source code
 KERNEL_SRC_DIR=$ROOT/src/linux-env/
@@ -60,9 +61,9 @@ function install_dep {
 scl_cmd_add kernel download download_kernel
 function download_kernel {
 	# this function downloads the kernel src to $KERNEL_SRC_DIR
-	if [ ! -d $KERNEL_SRC_DIR/linux-ubuntu-zesty ]; then
+	if [ ! -d $KERNEL_SRC_DIR/linux-ubuntu ]; then
 		mkdir -p $KERNEL_SRC_DIR
-		git clone git://kernel.ubuntu.com/ubuntu/ubuntu-zesty.git $KERNEL_SRC_DIR/linux-ubuntu-zesty
+		git clone $UBUNTU_KERNEL_GIT $KERNEL_SRC_DIR/linux-ubuntu
 	else
 		scl_askyn "Kernel source repo already exist, do you want to clean it?" && clean_kernel
 	fi
@@ -81,12 +82,12 @@ function patch_kernel {
 		git clone $PVD_KERNEL_PATCH $KERNEL_PATCH_DIR
 	fi
 	# then patch
-	if [ -d $KERNEL_SRC_DIR/linux-ubuntu-zesty ]; then
+	if [ -d $KERNEL_SRC_DIR/linux-ubuntu ]; then
 		clean_kernel
-		cd $KERNEL_SRC_DIR/linux-ubuntu-zesty
+		cd $KERNEL_SRC_DIR/linux-ubuntu
 		patch -p1 < $KERNEL_PATCH_DIR/patch* 
 	else
-		echo "Kernel source is absent at $KERNEL_SRC_DIR/linux-ubuntu-zesty, patching failed." 
+		echo "Kernel source is absent at $KERNEL_SRC_DIR/linux-ubuntu, patching failed." 
 		echo "Please consider first dowload it using option: $0 kernel download." 
 		cd $CD && return 1
 	fi
@@ -97,7 +98,7 @@ function patch_kernel {
 scl_cmd_add kernel clean clean_kernel
 function clean_kernel {
 	# this function reset the kernel src repo to git head and removes untracked files
-	cd $KERNEL_SRC_DIR/linux-ubuntu-zesty
+	cd $KERNEL_SRC_DIR/linux-ubuntu
 	git reset --hard
 	git clean -fd
 	rm -f .config
@@ -108,7 +109,7 @@ scl_cmd_add kernel config configure_kernel
 function configure_kernel {
 	# this function configures the kernel
 	# it seems the kernel config can be already done with proper kernel patch?
-	cd $KERNEL_SRC_DIR/linux-ubuntu-zesty
+	cd $KERNEL_SRC_DIR/linux-ubuntu
 	if [ -f .config ]; then
 		echo "Set local kernel version to $KERNEL_LOCAL_VERSION and enable pvd"
 		make olddefconfig
@@ -125,7 +126,7 @@ scl_cmd_add kernel bltpkg build_kernel
 function build_kernel {
 	# this function compiles the kernel into .deb
 	configure_kernel
-	cd $KERNEL_SRC_DIR/linux-ubuntu-zesty
+	cd $KERNEL_SRC_DIR/linux-ubuntu
 	n_core=$(grep -c ^processor /proc/cpuinfo)
 	echo "Now compiling the kernel with all your $n_core cores. It's going to take a while."
 	let n_core++
@@ -137,13 +138,13 @@ function build_kernel {
 scl_cmd_add kernel compile compile_kernel
 function compile_kernel {
 	# this function downloads the kernel source and compile it right away
-	if [ ! -d $KERNEL_SRC_DIR/linux-ubuntu-zesty ]; then
+	if [ ! -d $KERNEL_SRC_DIR/linux-ubuntu ]; then
 		mkdir -p $KERNEL_SRC_DIR
-		git clone git://kernel.ubuntu.com/ubuntu/ubuntu-zesty.git $KERNEL_SRC_DIR/linux-ubuntu-zesty
-		cd $KERNEL_SRC_DIR/linux-ubuntu-zesty
+		git clone $UBUNTU_KERNEL_GIT $KERNEL_SRC_DIR/linux-ubuntu
+		cd $KERNEL_SRC_DIR/linux-ubuntu
 		fakeroot debian/rules clean
 	fi
-	cd $KERNEL_SRC_DIR/linux-ubuntu-zesty
+	cd $KERNEL_SRC_DIR/linux-ubuntu
 	fakeroot debian/rules binary-headers binary-generic binary-perarch
 
 	cd $CD
