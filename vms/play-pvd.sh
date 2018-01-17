@@ -52,7 +52,7 @@ function network_setup {
     # 1st veth pair between router and the bridge
     sudo ip link add rt0 type veth peer name brif1
     # 2nd veth pair between router and the bridge
-    sudo ip linl add rt1 type veth peer name brif2
+    sudo ip link add rt1 type veth peer name brif2
     # add brif* to the bridge
     sudo brctl addif brpvd brif0
     sudo brctl addif brpvd brif1
