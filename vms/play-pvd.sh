@@ -153,6 +153,7 @@ function network_reset {
 
 scl_cmd_add send ra send_ra 
 function send_ra {
+    # send RA in router nework namespace according to specified configuration file
     if [ $# -lt 1 ]; then
         echo "Usage: $0 send ra path/to/ra/config/file"
         return 1
@@ -181,6 +182,7 @@ function send_ra {
 
 scl_cmd_add show ip_wrapper
 function ip_wrapper {
+    # show address link or route for specified network namespace
     if [ $# -lt 2 ]; then
         echo "Usage: $0 show NAME_OF_NETWORK_NAMESPACE OBJECT."
         AVAIL_NETNS=$(sudo ip netns show | cut -d' ' -f 1 | tr '\n' '|')

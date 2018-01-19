@@ -27,22 +27,27 @@ It especially tends to happen with IPv6, for the sake of address aggregation and
 <p>TODO: one-liner for other projects as well.</p>
 </details>
 
-## Repository organization
+
+## VM setting and kernel patching
+### Repository organization
 ```
 .
 ├── README.md
+├── ra_config /* where config for radvd is stored */
 ├── scripts /* where some utility functions are stored */
 │   └── bootstrap.sh
 └── vms
-    ├── linux-env.sh /* the major script we rely on */
+    ├── linux-env.sh /* the script for VM setup and kernek patch */
+    ├── play-pvd.sh  /* the script for mPvD provisioning and inspection */
     └── preseed.cfg
 ```
 After we've just cloned this repo, we will see directoreis and files as shown above.
 
-After performing operations specified here below, we expect to see a repo organized as follows:
+After performing operations specified in this section, we expect to see a repo organized as follows:
 ```
 .
 |-- README.md
+├── ra_config /* where config for radvd is stored */
 |-- run
 |   `-- linux-env
 |       `-- vm
@@ -62,7 +67,8 @@ After performing operations specified here below, we expect to see a repo organi
 |   `-- linux-env
 |       `-- /* some ephemeral stuffs that we are not supposed to manipulation manually */
 `-- vms
-    |-- linux-env.sh /* the major script for following automation */
+    |-- linux-env.sh /* the script for VM setup and kernek patch */
+    ├── play-pvd.sh  /* the script for mPvD provisioning and inspection */
     `-- preseed.cfg
 ```
 The organization of the repo can be customized according to you preference by setting variables in [linux-env.sh](./vms/linux-env.sh), which we will briefly explain below.
@@ -100,7 +106,6 @@ VM_VNC_PORT=12250
 VM_MNGMT_PORT=12350
 ```
 
-## Walk-through on environment setting
 ### Bootstraping
 Once git cloned this repository, start by bootstraping the environment.
 ```shell
@@ -160,7 +165,7 @@ sudo update-grub
 ```
 and then restart the VM again you will be able to select the PvD-aware kernel in the grub menu.
 
-## VM manipulation
+### VM manipulation
 Apart from the above designed course, we offer as well commands to facilitate some common tasks concerning the VM.
 ```shell
 ./vms/linux-env.sh vm start /* turn on the VM */
@@ -171,13 +176,130 @@ Apart from the above designed course, we offer as well commands to facilitate so
 ```
 The boot-from-optical-driver command is pretty handy, when you screw up the grub config, and want to repair it through a boot-repair iso.
 
-## Brief guide on initiating other mPVD projects
-<!TODO>
-### Install pvdd
-### Install Glibc
+## Play with mulitple PvDs
+Once we have prepared a VM with PvD kernel patch, we can then explore how the endhost behaves in a multi-prefix IPv6 network.
+Please git clone this project repository as well on the VM (no longer on the host machine).
+We are going to rely on [./vms/play-pvd.sh](./vms/play-pvd.sh) for the following steps.
+
+### Repository organization and settings
+After the operations in this section that happens inside the VM, we'd expect to see a repo organization as follows:
+```
+.
+├── README.md
+├── ra_config /* where config for radvd is stored */
+├── radvd /* where pvd-aware radvd src is downloaded and its binary compiled */
+├── iproute  /* where the pvd-aware iproute2 src is downloaded and binary its compiled */
+├── scripts /* where some utility functions are stored */
+│   └── bootstrap.sh
+└── vms
+    ├── linux-env.sh /* the script for VM setup and kernek patch */
+    ├── play-pvd.sh  /* the script for mPvD provisioning and inspection */
+    └── preseed.cfg
+
+```
+
+Very similar to the previous section, the repo settings can be altered to your preference in [./vms/play-pvd.sh](./vms/play-pvd.sh).
+
+It is recommended to first boostrap:
+```shell
+./scripts/bootstrap.sh
+```
+Then install the required packages before kick-off:
+```shell
+./vms/play-pvd.sh install dep
+```
+
+### Network settings
+In order to emulate the provisioning of multiple IPv6 prefixes from multiple router interfaces to an endhost within in a single VM, we can create two network namespaces.
+One for the endhost and the other for the router, under the root network namespace of the VM.
+The namespaces are connected to each other via a bridge called brpvd attached to the root network namespace.
+The endhost and the router namespace connects to the bridge through pairs of veth interfaces.
+An illustration of the above setting can be found right below.
+```
++------------------------------------------------------------------------+
+|host machine                                                            |
+|                                                                        |
+|  +------------------------------------------------------------------+  |
+|  |Ubuntu VM with PvD kernel patch                                   |  |
+|  |                                                                  |  |
+|  |  +------------------------------------------------------------+  |  |
+|  |  |ROOT network namespace                                      |  |  |
+|  |  |                                                            |  |  |
+|  |  |  +------------+       +-------------+       +------------+ |  |  |
+|  |  |  |endhost     |       |brpvd        |       |      router| |  |  |
+|  |  |  |namespace   |       |(bridge)     |       |   namespace| |  |  |
+|  |  |  |            |       |             |       |            | |  |  |
+|  |  |  |         eh0+-------+brif0(veth)  |       |            | |  |  |
+|  |  |  |            |       |             |       |            | |  |  |
+|  |  |  |iproute2    |       |  (veth)brif1+-------+rt0         | |  |  |
+|  |  |  |            |       |             |       |       radvd| |  |  |
+|  |  |  |            |       |  (veth)brif2+-------+rt1         | |  |  |
+|  |  |  |            |       |             |       |            | |  |  |
+|  |  |  |            |       |  (veth)brif3+-------+rt2         | |  |  |
+|  |  |  +------------+       +-------------+       +------------+ |  |  |
+|  |  |                                                            |  |  |
+|  |  +------------------------------------------------------------+  |  |
+|  |                                                                  |  |
+|  +------------------------------------------------------------------+  |
+|                                                                        |
++------------------------------------------------------------------------+
+
+```
+
+All these can be setup with:
+```shell
+./vms/play-pvd.sh setup
+```
+In order to restore the inital network setting, run:
+```shell
+./vms/play-pvd.sh cleanup
+```
+
 ### Install radvd
-### Install Wireshark
-### Other PvD related projects
+radvd is a tool that announces RA. It is now made capable of parsing configurations with PvD option.
+The tool can be installed with:
+```shell
+./vms/play-pvd.sh install radvd
+```
+### Install iproute2
+We as well modified the iproute2 so that it shows the PvD scope for addresses and routes learnt from RA.
+It can be installed with:
+```shell
+./vms/play-pvd.sh install iproute
+```
+The already avaible iproute2 installation won't be impacted.
+The generated runable ip command binary can only be found in ./iproute/ip/
+
+### Send RAs
+Once the tools are installed, we can send RAs in router namespace according to a specific configuration.
+Some example configurations are avaible in [./ra_config/](./ra_config/).
+For example, [2pvd_1normal.conf](./ra_config/2pvd_1normal.conf) defined 3 RA messages for 3 the interfaces in router namespace.
+Two RAs have two different PvD names and prefixes and one RA is without PvD option.
+These configuered RA can be sent with following command:
+```shell
+./vms/play-pvd.sh send ra ./ra_config/2pvd_1normal.conf
+```
+
+### Inspect network settings
+We provide as well a shorthand to inspect the endhost network configurations.
+```shell
+./vms/play-pvd.sh show endhost addr
+```
+With the RAs defined in [2pvd_1normal.conf](./ra_config/2pvd_1normal.conf), you would proabably see outpus like this:
+```shell
+7: eh0@if6: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 state UP qlen 1000
+    inet6 2001:1::50b5:61ff:fe5c:b183/64 scope global mngtmpaddr dynamic 
+       valid_lft 2033sec preferred_lft 1009sec pvd test-1.fr
+    inet6 2001:2::50b5:61ff:fe5c:b183/64 scope global mngtmpaddr dynamic 
+       valid_lft 2033sec preferred_lft 1009sec pvd test-2.fr
+    inet6 2001:3::50b5:61ff:fe5c:b183/64 scope global mngtmpaddr dynamic 
+       valid_lft 2033sec preferred_lft 1009sec 
+    inet6 fe80::50b5:61ff:fe5c:b183/64 scope link 
+
+```
+
+### Capture RA with PvD option with Wireshark
+<!TODO>
 
 
 
