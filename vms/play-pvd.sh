@@ -16,9 +16,6 @@ ROOT="$(realpath $CD/../)"
 DIR_IPROUTE="$ROOT/iproute"
 # where we put the VM disk
 DIR_RADVD="$ROOT/radvd"
-#mkdir -p $DIR_IPROUTE
-#mkdir -p $DIR_RADVD
-CONFIG_RADVD=$ROOT/vms/test.conf
 
 LINK_IPROUTE=https://github.com/IPv6-mPvD/iproute2.git
 LINK_RADVD=https://github.com/IPv6-mPvD/radvd.git
@@ -26,7 +23,7 @@ LINK_RADVD=https://github.com/IPv6-mPvD/radvd.git
 scl_cmd_add install dep install_dep
 function install_dep {
 	# this function installs the necessary packages
-	sudo apt-get install net-tools flex bison autotools-dev autoconf
+	sudo apt-get install iproute2 net-tools flex bison autotools-dev autoconf
 }
 
 scl_cmd_add install radvd install_radvd
@@ -43,14 +40,14 @@ function install_radvd {
         sudo ./configure
         sudo make
         if [ -f ./radvd ]; then
-            echo "Radvd installed."
+            echo "PvD-aware radvd is installed in $DIR_RADVD."
         else
             echo "Radvd installation failed."
         fi
         cd $ROOT
     else
         if [-f $DIR_RADVD/radvd]; then
-            echo "Radvd already installed."
+            echo "PvD-aware radvd is already installed in $DIR_RADVD."
         else
             sudo rm -rf $DIR_RADVD
             install_radvd
@@ -66,16 +63,15 @@ function install_iproute {
         cd $DIR_IPROUTE
         sudo ./configure
         sudo make
-        sudo make install
         if [ -f ip/ip ]; then
-            echo "iproute2 installed."
+            echo "PvD-aware iproute2 is installed in $DIR_IPROUTE/ip/."
         else
             echo "iproute2 installation failed."
         fi
         cd $ROOT
     else
         if [ -f $DIR_IPROUTE/ip/ip ]; then
-            echo "iproute2 already installed."
+            echo "PvD-aware iproute2 already installed in $DIR_IPROUTE/ip/."
         else
             sudo rm -rf $DIR_IPROUTE
             install_iproute
@@ -122,19 +118,46 @@ function network_setup {
     sudo ip netns exec router sysctl -w net.ipv6.conf.rt0.accept_ra=0
     sudo ip netns exec router sysctl -w net.ipv6.conf.rt1.accept_ra=0
     sudo ip netns exec router sysctl -w net.ipv6.conf.rt2.accept_ra=0
+    sudo sysctl -w net.ipv6.conf.brpvd.accept_ra=0
+    sudo sysctl -w net.ipv6.conf.brif0.accept_ra=0
+    sudo sysctl -w net.ipv6.conf.brif1.accept_ra=0
+    sudo sysctl -w net.ipv6.conf.brif2.accept_ra=0
+    sudo sysctl -w net.ipv6.conf.brif3.accept_ra=0
 }
 
 scl_cmd_add cleanup network_reset
 function network_reset {
     # it seems deleting the network namespace will as well delete the contaning devices
+    # see if we can remove all the turn down intf and delete part
+    sudo ip netns exec router ip link set rt0 down 2>&1 || true
+    sudo ip netns exec router ip link set rt1 down 2>&1 || true
+    sudo ip netns exec router ip link set rt2 down 2>&1 || true
+    sudo ip netns exec endhost ip link set eh0 down 2>&1 || true
+    
+    sudo ip link set brif0 down 2>&1 || true
+    sudo ip link set brif1 down 2>&1 || true
+    sudo ip link set brif2 down 2>&1 || true
+    sudo ip link set brif3 down 2>&1 || true
+
+    sudo ip link delete brif0 2>&1 || true
+    sudo ip link delete brif1 2>&1 || true
+    sudo ip link delete brif2 2>&1 || true
+    sudo ip link delete brif3 2>&1 || true
+
     sudo ip netns delete endhost 2>&1 || true
     sudo ip netns delete router  2>&1 || true
+
     sudo ip link set brpvd down 2>&1 || true
     sudo ip link delete brpvd 2>&1 || true
 }
 
-scl_cmd_add send_ra send_ra 
+scl_cmd_add send ra send_ra 
 function send_ra {
+    if [ $# -lt 1 ]; then
+        echo "Usage: $0 send ra path/to/ra/config/file"
+        return 1
+    fi
+    cd $LAUNCH_DIR
     if ! sudo ip netns show | grep router; then
         if scl_askyn "It seems network setting is not ready, setup now?"; then
             network_reset
@@ -152,21 +175,29 @@ function send_ra {
             return 1
         fi
     else
-        sudo ip netns exec router $DIR_RADVD/radvd -C $CONFIG_RADVD -d 5 -m stderr -n
+        sudo ip netns exec router $DIR_RADVD/radvd -C $1 -d 5 -m stderr -n
     fi
 }
 
-scl_cmd_add show_endhost_interface show_intf
-function show_intf {
+scl_cmd_add show ip_wrapper
+function ip_wrapper {
+    if [ $# -lt 2 ]; then
+        echo "Usage: $0 show NAME_OF_NETWORK_NAMESPACE OBJECT."
+        AVAIL_NETNS=$(sudo ip netns show | cut -d' ' -f 1 | tr '\n' '|')
+        AVAIL_NETNS=${AVAIL_NETNS%?}
+        echo "NAME_OF_NETWORK_NAMESPACE := {$AVAIL_NETNS}"
+        echo "OBJECT := {address|link|route}"
+        return 1
+    fi
     if [ ! -f $DIR_IPROUTE/ip/ip ]; then
         if scl_askyn "iproute2 is not yet installed, install now?"; then
             install_iproute
         else
-            echo "Interface in endhost namespace can not be shown, as iproute is absent."
+            echo "Address can not be shown, as iproute is absent."
             return 1        
         fi
     else
-        sudo ip netns exec endhost $DIR_IPROUTE/ip/ip netns exec endhost ip -6 add
+        sudo ip netns exec $1 $DIR_IPROUTE/ip/ip -6 $2 show
     fi
 }
 
