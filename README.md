@@ -5,6 +5,28 @@ This repository provides a series of abstraction/automation to facilate the envr
 Following steps will create an ubuntu VM with pvd kernel patch.
 Instructions are as well given on how to install on that VM other pvd related tools, especially pvdd and radvd. 
 
+Table of Contents
+=================
+
+* [Multi\-PvD Development Environment](#multi-pvd-development-environment)
+  * [Warmup/Revision:](#warmuprevision)
+  * [VM setting and kernel patching](#vm-setting-and-kernel-patching)
+    * [Repository organization](#repository-organization)
+    * [Repo settings](#repo-settings)
+    * [VM settings](#vm-settings)
+    * [Bootstraping](#bootstraping)
+    * [Get the VM ready](#get-the-vm-ready)
+    * [PvD\-aware kernel patch](#pvd-aware-kernel-patch)
+    * [VM manipulation](#vm-manipulation)
+  * [Provision multiple IPv6 prefixes using PvD option](#provision-multiple-ipv6-prefixes-using-pvd-option)
+    * [Repository organization and settings](#repository-organization-and-settings)
+    * [Network settings](#network-settings)
+    * [Install radvd](#install-radvd)
+    * [Install iproute2](#install-iproute2)
+    * [Send RAs](#send-ras)
+    * [Inspect network settings](#inspect-network-settings)
+    * [Capture RA with PvD option with Wireshark](#capture-ra-with-pvd-option-with-wireshark)
+
 ## Warmup/Revision:
 If you know the answers to the following questions, please do skip this section ;)
 
@@ -73,7 +95,6 @@ After performing operations specified in this section, we expect to see a repo o
 ```
 The organization of the repo can be customized according to you preference by setting variables in [linux-env.sh](./vms/linux-env.sh), which we will briefly explain below.
 
-## Settings
 ### Repo settings
 The placement of kernel source, patch, VM disk and etc., can all be customized. They are all specified in the [linux-env.sh](./vms/linux-env.sh). Here below their default values.
 ```bash
@@ -176,7 +197,7 @@ Apart from the above designed course, we offer as well commands to facilitate so
 ```
 The boot-from-optical-driver command is pretty handy, when you screw up the grub config, and want to repair it through a boot-repair iso.
 
-## Play with mulitple PvDs
+## Provision multiple IPv6 prefixes using PvD option
 Once we have prepared a VM with PvD kernel patch, we can then explore how the endhost behaves in a multi-prefix IPv6 network.
 Please git clone this project repository as well on the VM (no longer on the host machine).
 We are going to rely on [./vms/play-pvd.sh](./vms/play-pvd.sh) for the following steps.
