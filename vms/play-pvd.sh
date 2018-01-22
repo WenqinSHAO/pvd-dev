@@ -32,6 +32,7 @@ function install_radvd {
     if [ ! -d $DIR_RADVD ]; then
         git clone $LINK_RADVD $DIR_RADVD
         cd $DIR_RADVD
+        git checkout pvd
         sudo autoscan
         sudo aclocal
         sudo autoheader
@@ -61,6 +62,7 @@ function install_iproute {
     if [ ! -d $DIR_IPROUTE ]; then
         git clone $LINK_IPROUTE $DIR_IPROUTE
         cd $DIR_IPROUTE
+        git checkout pvd
         sudo ./configure
         sudo make
         if [ -f ip/ip ]; then
