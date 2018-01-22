@@ -23,7 +23,7 @@ LINK_RADVD=https://github.com/IPv6-mPvD/radvd.git
 scl_cmd_add install dep install_dep
 function install_dep {
 	# this function installs the necessary packages
-	sudo apt-get install iproute2 net-tools flex bison autotools-dev autoconf
+	sudo apt-get install iproute2 net-tools flex bison autotools-dev autoconf bridge-utils
 }
 
 scl_cmd_add install radvd install_radvd
