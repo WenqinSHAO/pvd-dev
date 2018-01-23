@@ -121,7 +121,7 @@ function network_setup {
     sudo ip netns exec router sysctl -w net.ipv6.conf.rt1.accept_ra=0
     sudo ip netns exec router sysctl -w net.ipv6.conf.rt2.accept_ra=0
     sudo ip netns exec endhost sysctl -w net.ipv6.conf.eh0.accept_ra_rtr_pref=1
-    sudp ip netns exec endhost sysctl -w net.ipv6.conf.eh0.accept_ra_rt_info_max_plen=64
+    sudo ip netns exec endhost sysctl -w net.ipv6.conf.eh0.accept_ra_rt_info_max_plen=64
     sudo sysctl -w net.ipv6.conf.brpvd.accept_ra=0
     sudo sysctl -w net.ipv6.conf.brif0.accept_ra=0
     sudo sysctl -w net.ipv6.conf.brif1.accept_ra=0
