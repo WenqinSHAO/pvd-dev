@@ -235,7 +235,7 @@ In order to emulate the provisioning of multiple IPv6 prefixes from multiple rou
 One for the endhost and the other for the router, under the root network namespace of the VM.
 The namespaces are connected to each other via a bridge called brpvd attached to the root network namespace.
 The endhost and the router namespace connects to the bridge through pairs of veth interfaces.
-An illustration of the above setting can be found right below.
+Diagram right below illustrates the above configuration.
 ```
 +------------------------------------------------------------------------+
 |host machine                                                            |
@@ -294,30 +294,50 @@ The generated runable ip command binary can only be found in ./iproute/ip/
 ### Send RAs
 Once the tools are installed, we can send RAs in router namespace according to a specific configuration.
 Some example configurations are avaible in [./ra_config/](./ra_config/).
-For example, [2pvd_1normal.conf](./ra_config/2pvd_1normal.conf) defined 3 RA messages for 3 the interfaces in router namespace.
-Two RAs have two different PvD names and prefixes and one RA is without PvD option.
-These configuered RA can be sent with following command:
+For example, [2pvd_1normal.conf](./ra_config/2pvd_1normal.conf) defines 3 RA messages for the 3 interfaces in router namespace.
+Two RAs are of two different PvD names, PIO and RIO, the remaining RA is without PvD option.
+These configuered RA can be sent with the following command:
 ```shell
 ./vms/play-pvd.sh send ra ./ra_config/2pvd_1normal.conf
 ```
 
 ### Inspect network settings
-We provide as well a shorthand to inspect the endhost network configurations.
+Once RAs are sent, it is time to inspect whether the endhost is correctly provisioned in this multiple-prefix environment.
+We provide as well some shorthands to inspect the endhost network configurations.
+
+The following command shows the IPv6 addresses configred in endhost network namespace.
 ```shell
 ./vms/play-pvd.sh show endhost addr
 ```
-With the RAs defined in [2pvd_1normal.conf](./ra_config/2pvd_1normal.conf), you would proabably see outpus like this:
+With the RAs defined in [2pvd_1normal.conf](./ra_config/2pvd_1normal.conf), you would proabably see outputs like this:
 ```shell
 7: eh0@if6: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 state UP qlen 1000
-    inet6 2001:1::50b5:61ff:fe5c:b183/64 scope global mngtmpaddr dynamic 
-       valid_lft 2033sec preferred_lft 1009sec pvd test-1.fr
-    inet6 2001:2::50b5:61ff:fe5c:b183/64 scope global mngtmpaddr dynamic 
-       valid_lft 2033sec preferred_lft 1009sec pvd test-2.fr
-    inet6 2001:3::50b5:61ff:fe5c:b183/64 scope global mngtmpaddr dynamic 
-       valid_lft 2033sec preferred_lft 1009sec 
-    inet6 fe80::50b5:61ff:fe5c:b183/64 scope link 
-
+    inet6 2001:1::3017:eaff:fe85:7114/64 scope global mngtmpaddr dynamic 
+       valid_lft 2036sec preferred_lft 1012sec pvd test-1.fr 
+    inet6 2001:2::3017:eaff:fe85:7114/64 scope global mngtmpaddr dynamic 
+       valid_lft 2036sec preferred_lft 1012sec pvd test-2.fr 
+    inet6 2001:3::3017:eaff:fe85:7114/64 scope global mngtmpaddr dynamic 
+       valid_lft 2036sec preferred_lft 1012sec 
+    inet6 fe80::3017:eaff:fe85:7114/64 scope link 
+       valid_lft forever preferred_lft forever 
 ```
+We can see that the automatically configured interface addresses are now annotated with the pvd name that RA message (in which the PIO is found) associates to.
+
+For endhosts that enable router preference, they will prefer certain router interface for traffic destined to configured prefixes. For example in [2pvd_1normal.conf](./ra_config/2pvd_1normal.conf), traffic toward 2001:1000::/40 should prefer the router interface sending out RA containing PvD test-1.fr. This preference for router interface is demonstrated in endhost routing table:
+```shell
+$ ./vms/play-pvd.sh show endhost route
+2001:1::/64 dev eh0 proto kernel metric 256 expires 2027sec pref medium pvd test-1.fr 
+2001:2::/64 dev eh0 proto kernel metric 256 expires 2027sec pref medium pvd test-2.fr 
+2001:3::/64 dev eh0 proto kernel metric 256 expires 2027sec pref medium 
+2001:3:3000::/40 via fe80::7477:dff:fe41:a6d2 dev eh0 proto ra metric 1024 pref high 
+2001:1000::/40 via fe80::e47a:20ff:feb9:77a4 dev eh0 proto ra metric 1024 pref high pvd test-1.fr 
+2001:2000::/48 via fe80::78f4:2fff:feec:d8a dev eh0 proto ra metric 1024 pref high pvd test-2.fr 
+fe80::/64 dev eh0 proto kernel metric 256 pref medium 
+default via fe80::7477:dff:fe41:a6d2 dev eh0 proto ra metric 1024 expires 1499sec hoplimit 64 pref medium 
+default via fe80::78f4:2fff:feec:d8a dev eh0 proto ra metric 1024 expires 1499sec hoplimit 64 pref medium pvd test-2.fr 
+default via fe80::e47a:20ff:feb9:77a4 dev eh0 proto ra metric 1024 expires 1499sec hoplimit 64 pref medium pvd test-1.fr 
+```
+We can see again that these route preferences are as well annotated with their corresponding PvD name.
 
 ### Capture RA with PvD option with Wireshark
 <!TODO>
