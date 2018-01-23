@@ -234,7 +234,7 @@ Then install the required packages before kick-off:
 
 ### Network settings
 In order to emulate the provisioning of multiple IPv6 prefixes from multiple router interfaces to an endhost within in a single VM, we can create two network namespaces.
-One for the endhost and the other for the router, under the root network namespace of the VM.
+One for the endhost and the other for the router.
 The two namespaces, _endhost_ and _router_, are connected to each other via a bridge called __brpvd__ attached to the root network namespace.
 The endhost and the router namespace connects to the bridge through pairs of veth interfaces.
 The diagram right below illustrates the above configuration.
@@ -245,28 +245,27 @@ The diagram right below illustrates the above configuration.
 |  +------------------------------------------------------------------+  |
 |  |Ubuntu VM with PvD kernel patch                                   |  |
 |  |                                                                  |  |
-|  |  +------------------------------------------------------------+  |  |
-|  |  |ROOT network namespace                                      |  |  |
-|  |  |                                                            |  |  |
-|  |  |  +------------+       +-------------+       +------------+ |  |  |
-|  |  |  |endhost     |       |brpvd        |       |      router| |  |  |
-|  |  |  |namespace   |       |(bridge)     |       |   namespace| |  |  |
-|  |  |  |            |       |             |       |            | |  |  |
-|  |  |  |         eh0+-------+brif0(veth)  |       |            | |  |  |
-|  |  |  |            |       |             |       |            | |  |  |
-|  |  |  |iproute2    |       |  (veth)brif1+-------+rt0         | |  |  |
-|  |  |  |            |       |             |       |       radvd| |  |  |
-|  |  |  |            |       |  (veth)brif2+-------+rt1         | |  |  |
-|  |  |  |            |       |             |       |            | |  |  |
-|  |  |  |            |       |  (veth)brif3+-------+rt2         | |  |  |
-|  |  |  +------------+       +-------------+       +------------+ |  |  |
-|  |  |                                                            |  |  |
-|  |  +------------------------------------------------------------+  |  |
+|  |                     +----------------------+                     |  |
+|  |                     |ROOT network namespace|                     |  |
+|  |                     |                      |                     |  |
+|  |    +------------+   |    +-------------+   |   +------------+    |  |
+|  |    |endhost net |   |    |brpvd        |   |   |  router net|    |  |
+|  |    |namespace   |   |    |(bridge)     |   |   |   namespace|    |  |
+|  |    |            |   |    |             |   |   |            |    |  |
+|  |    |         eh0+--------+brif0(veth)  |   |   |            |    |  |
+|  |    |            |   |    |             |   |   |            |    |  |
+|  |    |iproute2    |   |    |  (veth)brif1+-------+rt0         |    |  |
+|  |    |            |   |    |             |   |   |       radvd|    |  |
+|  |    |            |   |    |  (veth)brif2+-------+rt1         |    |  |
+|  |    |            |   |    |             |   |   |            |    |  |
+|  |    |            |   |    |  (veth)brif3+-------+rt2         |    |  |
+|  |    +------------+   |    +-------------+   |   +------------+    |  |
+|  |                     |                      |                     |  |
+|  |                     +----------------------+                     |  |
 |  |                                                                  |  |
 |  +------------------------------------------------------------------+  |
 |                                                                        |
 +------------------------------------------------------------------------+
-
 ```
 
 All these can be setup with:
@@ -277,7 +276,7 @@ In order to restore the inital network setting, run:
 ```shell
 ./vms/play-pvd.sh cleanup
 ```
-<!TODO: cleanup, more specifically dev delete blocked due to unable to acquire rtlink_mutex after sending RA. Note that without the PvD kernel patch, net dev can be soomthly removed after sending RA. Relative kernel bug: https://bugs.launchpad.net/ubuntu/+source/linux/+bug/1711407>
+<!TODO: cleanup, more specifically netdev delete blocked due to unablility in acquiring rtlink_mutex after sending RA. Note that without the PvD kernel patch, netdev can be soomthly removed after sending RA. Relative kernel bug: https://bugs.launchpad.net/ubuntu/+source/linux/+bug/1711407>
 
 ### Install radvd
 [radvd](https://github.com/IPv6-mPvD/radvd.git) is a tool that announces RA. 
@@ -320,13 +319,13 @@ The following command shows the IPv6 addresses configred in endhost network name
 With the RAs defined in [2pvd_1normal.conf](./ra_config/2pvd_1normal.conf), you would proabably see outputs like this:
 ```shell
 7: eh0@if6: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 state UP qlen 1000
-    inet6 2001:1::3017:eaff:fe85:7114/64 scope global mngtmpaddr dynamic 
-       valid_lft 2036sec preferred_lft 1012sec pvd test-1.fr 
-    inet6 2001:2::3017:eaff:fe85:7114/64 scope global mngtmpaddr dynamic 
-       valid_lft 2036sec preferred_lft 1012sec pvd test-2.fr 
-    inet6 2001:3::3017:eaff:fe85:7114/64 scope global mngtmpaddr dynamic 
-       valid_lft 2036sec preferred_lft 1012sec 
-    inet6 fe80::3017:eaff:fe85:7114/64 scope link 
+    inet6 2001:db8:1:0:c083:21ff:fef1:a0f4/64 scope global mngtmpaddr dynamic 
+       valid_lft 2033sec preferred_lft 1009sec pvd test1.example.com 
+    inet6 2001:db8:2:0:c083:21ff:fef1:a0f4/64 scope global mngtmpaddr dynamic 
+       valid_lft 2033sec preferred_lft 1009sec pvd test2.example.com 
+    inet6 2001:db8:3:0:c083:21ff:fef1:a0f4/64 scope global mngtmpaddr dynamic 
+       valid_lft 2033sec preferred_lft 1009sec 
+    inet6 fe80::c083:21ff:fef1:a0f4/64 scope link 
        valid_lft forever preferred_lft forever 
 ```
 We can see that the automatically configured interface addresses are now annotated with the pvd name that RA message (in which the PIO is found) associates to.
@@ -334,16 +333,16 @@ We can see that the automatically configured interface addresses are now annotat
 For endhosts that enable router preference, they will prefer certain router interface for traffic destined to configured prefixes. For example in [2pvd_1normal.conf](./ra_config/2pvd_1normal.conf), traffic toward 2001:1000::/40 should prefer the router interface sending out RA containing PvD test-1.fr. This preference for router interface is demonstrated in endhost routing table:
 ```shell
 $ ./vms/play-pvd.sh show endhost route
-2001:1::/64 dev eh0 proto kernel metric 256 expires 2027sec pref medium pvd test-1.fr 
-2001:2::/64 dev eh0 proto kernel metric 256 expires 2027sec pref medium pvd test-2.fr 
-2001:3::/64 dev eh0 proto kernel metric 256 expires 2027sec pref medium 
-2001:3:3000::/40 via fe80::7477:dff:fe41:a6d2 dev eh0 proto ra metric 1024 pref high 
-2001:1000::/40 via fe80::e47a:20ff:feb9:77a4 dev eh0 proto ra metric 1024 pref high pvd test-1.fr 
-2001:2000::/48 via fe80::78f4:2fff:feec:d8a dev eh0 proto ra metric 1024 pref high pvd test-2.fr 
+2001:db8:1::/64 dev eh0 proto kernel metric 256 expires 2024sec pref medium pvd test1.example.com 
+2001:db8:2::/64 dev eh0 proto kernel metric 256 expires 2024sec pref medium pvd test2.example.com 
+2001:db8:3::/64 dev eh0 proto kernel metric 256 expires 2024sec pref medium 
+2001:db8:1000::/40 via fe80::e0dc:a2ff:fe78:4043 dev eh0 proto ra metric 1024 pref high pvd test1.example.com 
+2001:db8:2000::/48 via fe80::d459:6dff:fe3f:646a dev eh0 proto ra metric 1024 pref high pvd test2.example.com 
+2001:db8:3000::/40 via fe80::bc93:1dff:fe63:8cc5 dev eh0 proto ra metric 1024 pref high 
 fe80::/64 dev eh0 proto kernel metric 256 pref medium 
-default via fe80::7477:dff:fe41:a6d2 dev eh0 proto ra metric 1024 expires 1499sec hoplimit 64 pref medium 
-default via fe80::78f4:2fff:feec:d8a dev eh0 proto ra metric 1024 expires 1499sec hoplimit 64 pref medium pvd test-2.fr 
-default via fe80::e47a:20ff:feb9:77a4 dev eh0 proto ra metric 1024 expires 1499sec hoplimit 64 pref medium pvd test-1.fr 
+default via fe80::bc93:1dff:fe63:8cc5 dev eh0 proto ra metric 1024 expires 1492sec hoplimit 64 pref medium 
+default via fe80::d459:6dff:fe3f:646a dev eh0 proto ra metric 1024 expires 1492sec hoplimit 64 pref medium pvd test2.example.com 
+default via fe80::e0dc:a2ff:fe78:4043 dev eh0 proto ra metric 1024 expires 1492sec hoplimit 64 pref medium pvd test1.example.com 
 ```
 We can see again that these route preferences are as well annotated with their corresponding PvD name.
 
