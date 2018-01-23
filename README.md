@@ -3,7 +3,7 @@
 This repository provides a series of abstraction/automation to facilate the envrionement setting for multi-PvD related projects.
 
 Following steps will create an ubuntu VM with pvd kernel patch.
-Instructions are as well given on how to install on that VM other pvd related tools, especially pvdd and radvd. 
+Instructions are as well given on how to install on that VM other pvd related tools, especially pvdd, radvd, iproute2 and wireshark. 
 
 Table of Contents
 =================
@@ -55,7 +55,7 @@ It especially tends to happen with IPv6, for the sake of address aggregation and
 ```
 .
 ├── README.md
-├── ra_config /* where config for radvd is stored */
+├── ra_config /* where config for radvd is stored, not relevant at this stage */
 ├── scripts /* where some utility functions are stored */
 │   └── bootstrap.sh
 └── vms
@@ -69,7 +69,7 @@ After performing operations specified in this section, we expect to see a repo o
 ```
 .
 |-- README.md
-├── ra_config /* where config for radvd is stored */
+├── ra_config /* where config for radvd is stored, not relevant at this stage */
 |-- run
 |   `-- linux-env
 |       `-- vm
@@ -93,7 +93,7 @@ After performing operations specified in this section, we expect to see a repo o
     ├── play-pvd.sh  /* the script for mPvD provisioning and inspection */
     `-- preseed.cfg
 ```
-The organization of the repo can be customized according to you preference by setting variables in [linux-env.sh](./vms/linux-env.sh), which we will briefly explain below.
+The organization of the repo can be customized according to you preference by setting variables in [linux-env.sh](./vms/linux-env.sh).
 
 ### Repo settings
 The placement of kernel source, patch, VM disk and etc., can all be customized. They are all specified in the [linux-env.sh](./vms/linux-env.sh). Here below their default values.
@@ -138,7 +138,8 @@ This script will simply download some other utlity functions on top of which the
 The so called development evniroement is mainly an Ubuntu Zesty VM.
 As interested developper/user, you might want to:
 1. test/develop the PvD-aware linux kernel;
-2. test/develop applications on top of PvD-aware hosts.
+2. test/explore multiprefix provisioning and endhost behaviour;
+3. test/develop applications on top of PvD-aware endhosts.
 
 All these happen on the Ubuntu VM.
 Prepareing such a VM can be easily done with options provided by the ./vms/linux-env.sh script.
@@ -173,9 +174,9 @@ Then, let's compile the kernel and build .deb packages needed for kernel install
 ```shell
 ./vms/linux-env.sh kernel bltpkg
 ```
-This will take quite a while. Once finished, generated linux-.*.deb sit in $your_project_directory/src/linux-env/
+This will take quite a while. Once finished, generated linux-.*.deb shall sit in $your_project_directory/src/linux-env/
 
-Now you have to wait till the VM is ready and TURN IT OFF, as we are going to install PvD-aware kernel pakages on it.
+Now you have to wait till the VM is ready and __TURN IT OFF__, as we are going to install PvD-aware kernel pakages on it, from the host machine of the VM.
 ```shell
 ./vms/linux-env.sh kernel install
 ```
@@ -187,7 +188,7 @@ sudo update-grub
 and then restart the VM again you will be able to select the PvD-aware kernel in the grub menu.
 
 ### VM manipulation
-Apart from the above designed course, we offer as well commands to facilitate some common tasks concerning the VM.
+Besides the above designed course, we offer as well commands to facilitate some common VM manipulation.
 ```shell
 ./vms/linux-env.sh vm start /* turn on the VM */
 ./vms/linux-env.sh vm ssh /* ssh to the VM */
@@ -201,9 +202,10 @@ The boot-from-optical-driver command is pretty handy, when you screw up the grub
 Once we have prepared a VM with PvD kernel patch, we can then explore how the endhost behaves in a multi-prefix IPv6 network.
 Please git clone this project repository as well on the VM (no longer on the host machine).
 We are going to rely on [./vms/play-pvd.sh](./vms/play-pvd.sh) for the following steps.
+For following steps, please selected the PvD-aware kernel in grub menu when booting the VM.
 
 ### Repository organization and settings
-After the operations in this section that happens inside the VM, we'd expect to see a repo organization as follows:
+After the operations in this section, which happen inside the VM, we'd expect to see a repo organization as follows:
 ```
 .
 ├── README.md
@@ -219,7 +221,7 @@ After the operations in this section that happens inside the VM, we'd expect to 
 
 ```
 
-Very similar to the previous section, the repo settings can be altered to your preference in [./vms/play-pvd.sh](./vms/play-pvd.sh).
+Very similar to the previous section, the repo settings can be altered according to your preference in [./vms/play-pvd.sh](./vms/play-pvd.sh).
 
 It is recommended to first boostrap:
 ```shell
@@ -233,9 +235,9 @@ Then install the required packages before kick-off:
 ### Network settings
 In order to emulate the provisioning of multiple IPv6 prefixes from multiple router interfaces to an endhost within in a single VM, we can create two network namespaces.
 One for the endhost and the other for the router, under the root network namespace of the VM.
-The namespaces are connected to each other via a bridge called brpvd attached to the root network namespace.
+The two namespaces, _endhost_ and _router_, are connected to each other via a bridge called __brpvd__ attached to the root network namespace.
 The endhost and the router namespace connects to the bridge through pairs of veth interfaces.
-Diagram right below illustrates the above configuration.
+The diagram right below illustrates the above configuration.
 ```
 +------------------------------------------------------------------------+
 |host machine                                                            |
@@ -275,15 +277,21 @@ In order to restore the inital network setting, run:
 ```shell
 ./vms/play-pvd.sh cleanup
 ```
+<!TODO: cleanup, more specifically dev delete blocked due to unable to acquire rtlink_mutex after sending RA. Note that without the PvD kernel patch, net dev can be soomthly removed after sending RA. Relative kernel bug: https://bugs.launchpad.net/ubuntu/+source/linux/+bug/1711407>
 
 ### Install radvd
-radvd is a tool that announces RA. It is now made capable of parsing configurations with PvD option.
-The tool can be installed with:
+[radvd](https://github.com/IPv6-mPvD/radvd.git) is a tool that announces RA. 
+We use it to mimic a router that provisons endhosts with multiple prefixes.
+Several scenarios are possible. Here we domonstrate the one with RAs containing Prefix Information Option (PIO) that allow endhost auto-configuring the interface IPv6 address.
+[radvd](https://github.com/IPv6-mPvD/radvd.git) is now made capable of parsing configurations with PvD option.
+It can be installed with:
 ```shell
 ./vms/play-pvd.sh install radvd
 ```
+The radvd binary will only remain in the ./radvd/ directory.
+
 ### Install iproute2
-We as well modified the iproute2 so that it shows the PvD scope for addresses and routes learnt from RA.
+We as well modified the [iproute2](https://github.com/IPv6-mPvD/iproute2.git) so that it understands and shows the PvD scope for addresses and routes that the endhost kernel learns from RA.
 It can be installed with:
 ```shell
 ./vms/play-pvd.sh install iproute
@@ -292,9 +300,9 @@ The already avaible iproute2 installation won't be impacted.
 The generated runable ip command binary can only be found in ./iproute/ip/
 
 ### Send RAs
-Once the tools are installed, we can send RAs in router namespace according to a specific configuration.
+Once the two tools are installed, we can send RAs in router namespace according to a specific configuration.
 Some example configurations are avaible in [./ra_config/](./ra_config/).
-For example, [2pvd_1normal.conf](./ra_config/2pvd_1normal.conf) defines 3 RA messages for the 3 interfaces in router namespace.
+For example, [2pvd_1normal.conf](./ra_config/2pvd_1normal.conf) defines 3 RA messages for the 3 interfaces in the _router_ namespace.
 Two RAs are of two different PvD names, PIO and RIO, the remaining RA is without PvD option.
 These configuered RA can be sent with the following command:
 ```shell
@@ -342,5 +350,7 @@ We can see again that these route preferences are as well annotated with their c
 ### Capture RA with PvD option with Wireshark
 <!TODO>
 
+### pvdd and glibc
+<!TODO>
 
 
