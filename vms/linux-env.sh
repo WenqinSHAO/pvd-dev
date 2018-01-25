@@ -32,7 +32,7 @@ VM_MNGMT_PORT=12350
 # where to fetch the installation image for ubuntu
 UBUNTU_ISO=http://archive.ubuntu.com/ubuntu/dists/zesty/main/installer-amd64/current/images/netboot/mini.iso
 UBUNTU_MIRROR=""
-UBUNTU_KERNEL_GIT=git://kernel.ubuntu.com/ubuntu/ubuntu-artful.git
+UBUNTU_KERNEL_GIT=git://kernel.ubuntu.com/ubuntu/ubuntu-zesty.git
 
 # where we put the kernel source code
 KERNEL_SRC_DIR=$ROOT/src/linux-env/
