@@ -18,7 +18,7 @@ DIR_IPROUTE="$ROOT/iproute"
 DIR_RADVD="$ROOT/radvd"
 
 LINK_IPROUTE=https://github.com/IPv6-mPvD/iproute2.git
-LINK_RADVD=https://github.com/IPv6-mPvD/radvd.git
+LINK_RADVD=https://github.com/WenqinSHAO/radvd.git
 
 scl_cmd_add install dep install_dep
 function install_dep {
@@ -32,7 +32,7 @@ function install_radvd {
     if [ ! -d $DIR_RADVD ]; then
         git clone $LINK_RADVD $DIR_RADVD
         cd $DIR_RADVD
-        git checkout pvd
+        git checkout pvd-draft-01
         sudo autoscan
         sudo aclocal
         sudo autoheader
