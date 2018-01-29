@@ -179,9 +179,8 @@ function send_ra {
             echo "RA can not be sent from router namespace, as Radvd is absent."
             return 1
         fi
-    else
-        sudo ip netns exec router $DIR_RADVD/radvd -C $1 -d 5 -m stderr -n
     fi
+    sudo ip netns exec router $DIR_RADVD/radvd -C $1 -d 5 -m stderr -n
 }
 
 scl_cmd_add show ip_wrapper
