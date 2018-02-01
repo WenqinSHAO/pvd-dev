@@ -84,25 +84,30 @@ function install_iproute {
 scl_cmd_add setup network_setup
 function network_setup {
     # separate router and endhost in two network namespaces
-    sudo ip netns add endhost
+    sudo ip netns add host_pvd  # pvd parsing enabled
+    sudo ip netns add host_classic # host does not parse pvd
     sudo ip netns add router
     # first creat the bridge between the endhost and the router
     sudo brctl addbr brpvd
-    # veth pair between endhost and the bridge
+    # veth pair between host_pvd and the bridge
     sudo ip link add eh0 type veth peer name brif0
+    # veth pair between host_classic and the bridge
+    sudo ip link add eh1 type veth peer name brif1
     # 1st veth pair between router and the bridge
-    sudo ip link add rt0 type veth peer name brif1
+    sudo ip link add rt0 type veth peer name brif2
     # 2nd veth pair between router and the bridge
-    sudo ip link add rt1 type veth peer name brif2
+    sudo ip link add rt1 type veth peer name brif3
     #3rd veth pair between router and the bridge
-    sudo ip link add rt2 type veth peer name brif3
+    sudo ip link add rt2 type veth peer name brif4
     # add brif* to the bridge
     sudo brctl addif brpvd brif0
     sudo brctl addif brpvd brif1
     sudo brctl addif brpvd brif2
     sudo brctl addif brpvd brif3
+    sudo brctl addif brpvd brif3
     # add the other side the veth pair to corresponding network namespaces
-    sudo ip link set eh0 netns endhost
+    sudo ip link set eh0 netns host_pvd
+    sudo ip link set eh1 netns host_classic
     sudo ip link set rt0 netns router
     sudo ip link set rt1 netns router
     sudo ip link set rt2 netns router
@@ -112,7 +117,9 @@ function network_setup {
     sudo ip link set brif1 up
     sudo ip link set brif2 up
     sudo ip link set brif3 up
-    sudo ip netns exec endhost ip link set eh0 up
+    sudo ip link set brif4 up
+    sudo ip netns exec host_pvd ip link set eh0 up
+    sudo ip netns exec host_classic ip link set eh1 up
     sudo ip netns exec router ip link set rt0 up
     sudo ip netns exec router ip link set rt1 up
     sudo ip netns exec router ip link set rt2 up
@@ -120,13 +127,18 @@ function network_setup {
     sudo ip netns exec router sysctl -w net.ipv6.conf.rt0.accept_ra=0
     sudo ip netns exec router sysctl -w net.ipv6.conf.rt1.accept_ra=0
     sudo ip netns exec router sysctl -w net.ipv6.conf.rt2.accept_ra=0
-    sudo ip netns exec endhost sysctl -w net.ipv6.conf.eh0.accept_ra_rtr_pref=1
-    sudo ip netns exec endhost sysctl -w net.ipv6.conf.eh0.accept_ra_rt_info_max_plen=64
+    sudo ip netns exec host_pvd sysctl -w net.ipv6.conf.eh0.parse_pvd=1
+    sudo ip netns exec host_pvd sysctl -w net.ipv6.conf.eh0.accept_ra_rtr_pref=1
+    sudo ip netns exec host_pvd sysctl -w net.ipv6.conf.eh0.accept_ra_rt_info_max_plen=64
+    sudo ip netns exec host_classic sysctl -w net.ipv6.conf.eh1.parse_pvd=0
+    sudo ip netns exec host_classic sysctl -w net.ipv6.conf.eh1.accept_ra_rtr_pref=1
+    sudo ip netns exec host_classic sysctl -w net.ipv6.conf.eh1.accept_ra_rt_info_max_plen=64
     sudo sysctl -w net.ipv6.conf.brpvd.accept_ra=0
     sudo sysctl -w net.ipv6.conf.brif0.accept_ra=0
     sudo sysctl -w net.ipv6.conf.brif1.accept_ra=0
     sudo sysctl -w net.ipv6.conf.brif2.accept_ra=0
     sudo sysctl -w net.ipv6.conf.brif3.accept_ra=0
+    sudo sysctl -w net.ipv6.conf.brif4.accept_ra=0
 }
 
 scl_cmd_add cleanup network_reset
@@ -136,19 +148,23 @@ function network_reset {
     sudo ip netns exec router ip link set rt0 down 2>&1 || true
     sudo ip netns exec router ip link set rt1 down 2>&1 || true
     sudo ip netns exec router ip link set rt2 down 2>&1 || true
-    sudo ip netns exec endhost ip link set eh0 down 2>&1 || true
-    
+    sudo ip netns exec host_pvd ip link set eh0 down 2>&1 || true
+    sudo ip netns exec host_classic ip link set eh1 down 2>&1 || true
+
     sudo ip link set brif0 down 2>&1 || true
     sudo ip link set brif1 down 2>&1 || true
     sudo ip link set brif2 down 2>&1 || true
     sudo ip link set brif3 down 2>&1 || true
+    sudo ip link set brif4 down 2>&1 || true
 
     sudo ip link delete brif0 2>&1 || true
     sudo ip link delete brif1 2>&1 || true
     sudo ip link delete brif2 2>&1 || true
     sudo ip link delete brif3 2>&1 || true
+    sudo ip link delete brif4 2>&1 || true
 
-    sudo ip netns delete endhost 2>&1 || true
+    sudo ip netns delete host_pvd 2>&1 || true
+    sudo ip netns delete host_classic 2>&1 || true
     sudo ip netns delete router  2>&1 || true
 
     sudo ip link set brpvd down 2>&1 || true
