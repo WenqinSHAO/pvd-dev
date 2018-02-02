@@ -116,7 +116,7 @@ KERNEL_PATCH_DIR=$ROOT/src/pvd-kernel-path/
 KERNEL_LOCAL_VERSION="thierry-pvd"
 ```
 ### VM settings
-As mentioned earlier, we are going to creat a VM on which the experiments are carried out. The specs of the VM can as well be customized according to your needs and constraints in [linux-env.sh](./vms/linux-env.sh). Here below the default values.
+As mentioned earlier, we are going to creat a VM on which the mPvD related experiments can be carried out. The specs of the VM can as well be customized according to your needs and constraints in [linux-env.sh](./vms/linux-env.sh). Here below the default values.
 ```bash
 # VM specs, please configure according your hardware capability
 VM_RAM=8G
@@ -174,7 +174,15 @@ Then, let's compile the kernel and build .deb packages needed for kernel install
 ```shell
 ./vms/linux-env.sh kernel bltpkg
 ```
-This will take quite a while. Once finished, generated linux-.*.deb shall sit in $your_project_directory/src/linux-env/
+This will take quite a while.
+Meantime, let's have a quick look at what does this kernel patch actually bring:
+1. It first modifies the IPv6 neighbour discovery option parser behaviour, so that it can understand what happens inside a PvD option. This PvD parsing behaviour can be easily turn on/off via option net.ipv6.conf.<interface>.parse_pvd in sysctl. The default value is 1, which means on.
+2. TODO: describe the RA parsing behaviour here. Note that when parse_pvd is truned off, the kernel just skipps the PvD option in RA as unpactched kernel will do.
+3. When applying learnt ND6 options in RAs, the patch associates prefixes, routes, etc. to the corresponding PvD.
+4. New rtnetlink messages are added so that userspace can be aware of the PvD information update.
+
+
+Once kernel building finished, generated linux-.*.deb shall sit in $your_project_directory/src/linux-env/
 
 Now you have to wait till the VM is ready and __TURN IT OFF__, as we are going to install PvD-aware kernel pakages on it, from the host machine of the VM.
 ```shell
@@ -199,7 +207,7 @@ Besides the above designed course, we offer as well commands to facilitate some 
 The boot-from-optical-driver command is pretty handy, when you screw up the grub config, and want to repair it through a boot-repair iso.
 
 ## Provision multiple IPv6 prefixes using PvD option
-Once we have prepared a VM with PvD kernel patch, we can then explore how the endhost behaves in a multi-prefix IPv6 network.
+Once we have prepared a VM with PvD kernel patch, we can then explore how the endhosts behave in a multi-prefix IPv6 network.
 Please git clone this project repository as well on the VM (no longer on the host machine).
 We are going to rely on [./vms/play-pvd.sh](./vms/play-pvd.sh) for the following steps.
 For following steps, please selected the PvD-aware kernel in grub menu when booting the VM.
@@ -233,10 +241,11 @@ Then install the required packages before kick-off:
 ```
 
 ### Network settings
-In order to emulate the provisioning of multiple IPv6 prefixes from multiple router interfaces to an endhost within in a single VM, we can create two network namespaces.
-One for the endhost and the other for the router.
-The two namespaces, _endhost_ and _router_, are connected to each other via a bridge called __brpvd__ attached to the root network namespace.
-The endhost and the router namespace connects to the bridge through pairs of veth interfaces.
+In order to emulate the provisioning of multiple IPv6 prefixes from multiple router interfaces to endhosts (PvD aware and unaware) within in a single VM, we can create three network namespaces: __host\_pvd__, __host\_classic__ and __router__.
+The difference between __host\_pvd__ and __host\_classic__ is that the latter has net.ipv6.conf.eh1.parse_pvd set to 0.
+__host\_classic__ behavious very much a like a PvD unaware endhost.
+hosts and the router, are connected to each other via a bridge called __brpvd__ attached to the root network namespace.
+The hosts and the router namespace connects to the bridge through pairs of veth interfaces.
 The diagram right below illustrates the above configuration.
 ```
 +------------------------------------------------------------------------+
@@ -252,13 +261,13 @@ The diagram right below illustrates the above configuration.
 |  |    |            |   |    |brpvd        |   |   | router net |    |  |
 |  |    |            |   |    |(bridge)     |   |   |   namespace|    |  |
 |  |    |            |   |    |             |   |   |            |    |  |
-|  |    |         eh0+--------+brif0(^eth)  |   |   |            |    |  |
+|  |    |         eh0+--------+brif0(veth)  |   |   |            |    |  |
 |  |    +------------+   |    |             |   |   |            |    |  |
-|  |    |            |   |    |  (^eth)brif2+-------+rt0         |    |  |
-|  |    |         eh1+--------+brif1(veth)  |   |   |       rad^d|    |  |
-|  |    |            |   |    |  (^eth)brif3+-------+rt1         |    |  |
+|  |    |            |   |    |  (veth)brif2+-------+rt0         |    |  |
+|  |    |         eh1+--------+brif1(veth)  |   |   |       radvd|    |  |
+|  |    |            |   |    |  (veth)brif3+-------+rt1         |    |  |
 |  |    |            |   |    |             |   |   |            |    |  |
-|  |    |            |   |    |  (^eth)brif4+-------+rt2         |    |  |
+|  |    |            |   |    |  (veth)brif4+-------+rt2         |    |  |
 |  |    |            |   |    +-------------+   |   +------------+    |  |
 |  |    |host_classic|   |                      |                     |  |
 |  |    +------------+   +----------------------+                     |  |
@@ -310,42 +319,55 @@ These configuered RA can be sent with the following command:
 ```
 
 ### Inspect network settings
-Once RAs are sent, it is time to inspect whether the endhost is correctly provisioned in this multiple-prefix environment.
-We provide as well some shorthands to inspect the endhost network configurations.
+Once RAs are sent, it is time to inspect whether the hosts are correctly provisioned in this multiple-prefix environment.
+We provide _show_ option as a shorthand to inspect network configurations in certain network namespaces.
+```
+Usage: ./vms/play-pvd.sh show NAME_OF_NETWORK_NAMESPACE OBJECT.
+NAME_OF_NETWORK_NAMESPACE := {router|host_classic|host_pvd}
+OBJECT := {address|link|route}
+```
 
-The following command shows the IPv6 addresses configred in endhost network namespace.
+For example, the following command shows the IPv6 addresses configred in __host\_pvd__ network namespace.
 ```shell
-./vms/play-pvd.sh show endhost addr
+./vms/play-pvd.sh show host_pvd addr
 ```
 With the RAs defined in [2pvd_1normal.conf](./ra_config/2pvd_1normal.conf), you would proabably see outputs like this:
 ```shell
 7: eh0@if6: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 state UP qlen 1000
-    inet6 2001:db8:1:0:c083:21ff:fef1:a0f4/64 scope global mngtmpaddr dynamic 
-       valid_lft 2033sec preferred_lft 1009sec pvd test1.example.com 
-    inet6 2001:db8:2:0:c083:21ff:fef1:a0f4/64 scope global mngtmpaddr dynamic 
-       valid_lft 2033sec preferred_lft 1009sec pvd test2.example.com 
-    inet6 2001:db8:3:0:c083:21ff:fef1:a0f4/64 scope global mngtmpaddr dynamic 
-       valid_lft 2033sec preferred_lft 1009sec 
-    inet6 fe80::c083:21ff:fef1:a0f4/64 scope link 
+    inet6 2001:db8:2:0:3ca5:b0ff:fef5:2697/64 scope global mngtmpaddr dynamic 
+       valid_lft 2032sec preferred_lft 1008sec pvd test2.example.com. 
+    inet6 2001:db8:3:0:3ca5:b0ff:fef5:2697/64 scope global mngtmpaddr dynamic 
+       valid_lft 2032sec preferred_lft 1008sec 
+    inet6 2001:db8:1:beef:3ca5:b0ff:fef5:2697/64 scope global mngtmpaddr dynamic 
+       valid_lft 86400sec preferred_lft 14400sec pvd test1.example.com. 
+    inet6 2001:db8:1:abcd:3ca5:b0ff:fef5:2697/64 scope global mngtmpaddr dynamic 
+       valid_lft 86400sec preferred_lft 14400sec pvd test1.example.com. 
+    inet6 fe80::3ca5:b0ff:fef5:2697/64 scope link 
        valid_lft forever preferred_lft forever 
 ```
 We can see that the automatically configured interface addresses are now annotated with the pvd name that RA message (in which the PIO is found) associates to.
 
-For endhosts that enable router preference, they will prefer certain router interface for traffic destined to configured prefixes. For example in [2pvd_1normal.conf](./ra_config/2pvd_1normal.conf), traffic toward 2001:1000::/40 should prefer the router interface sending out RA containing PvD test-1.fr. This preference for router interface is demonstrated in endhost routing table:
+For hosts that enable as well router preference, they are aware of:
+1. default router preference conveyed in RA header;
+2. router preference towarded prefixes specified in RIO.
+ 
+For example in [2pvd_1normal.conf](./ra_config/2pvd_1normal.conf), traffic toward 2001:1a00::/40 should prefer the router interface sending out RA containing PvD test1.example.com. This preference for router interface is demonstrated in __host\_pvd__ routing table:
 ```shell
-$ ./vms/play-pvd.sh show endhost route
-2001:db8:1::/64 dev eh0 proto kernel metric 256 expires 2024sec pref medium pvd test1.example.com 
-2001:db8:2::/64 dev eh0 proto kernel metric 256 expires 2024sec pref medium pvd test2.example.com 
-2001:db8:3::/64 dev eh0 proto kernel metric 256 expires 2024sec pref medium 
-2001:db8:1000::/40 via fe80::e0dc:a2ff:fe78:4043 dev eh0 proto ra metric 1024 pref high pvd test1.example.com 
-2001:db8:2000::/48 via fe80::d459:6dff:fe3f:646a dev eh0 proto ra metric 1024 pref high pvd test2.example.com 
-2001:db8:3000::/40 via fe80::bc93:1dff:fe63:8cc5 dev eh0 proto ra metric 1024 pref high 
+2001:db8:1:abcd::/64 dev eh0 proto kernel metric 256 expires 86398sec pref medium pvd test1.example.com. 
+2001:db8:1:beef::/64 dev eh0 proto kernel metric 256 expires 86398sec pref medium pvd test1.example.com. 
+2001:db8:2::/64 dev eh0 proto kernel metric 256 expires 2014sec pref medium pvd test2.example.com. 
+2001:db8:3::/64 dev eh0 proto kernel metric 256 expires 2014sec pref medium 
+2001:db8:1a00::/40 via fe80::ac0e:deff:fe30:8b22 dev eh0 proto ra metric 1024 pref high pvd test1.example.com. 
+2001:db8:1b00::/40 via fe80::ac0e:deff:fe30:8b22 dev eh0 proto ra metric 1024 pref high pvd test1.example.com. 
+2001:db8:2000::/48 via fe80::d8a1:e6ff:fe3d:8a6e dev eh0 proto ra metric 1024 pref high pvd test2.example.com. 
+2001:db8:3000::/40 via fe80::f4d7:79ff:fe5c:4626 dev eh0 proto ra metric 1024 pref high 
 fe80::/64 dev eh0 proto kernel metric 256 pref medium 
-default via fe80::bc93:1dff:fe63:8cc5 dev eh0 proto ra metric 1024 expires 1492sec hoplimit 64 pref medium 
-default via fe80::d459:6dff:fe3f:646a dev eh0 proto ra metric 1024 expires 1492sec hoplimit 64 pref medium pvd test2.example.com 
-default via fe80::e0dc:a2ff:fe78:4043 dev eh0 proto ra metric 1024 expires 1492sec hoplimit 64 pref medium pvd test1.example.com 
+default via fe80::d8a1:e6ff:fe3d:8a6e dev eh0 proto ra metric 1024 expires 65533sec hoplimit 64 pref low pvd test2.example.com. 
+default via fe80::ac0e:deff:fe30:8b22 dev eh0 proto ra metric 1024 expires 65533sec hoplimit 64 pref medium pvd test1.example.com. 
+default via fe80::f4d7:79ff:fe5c:4626 dev eh0 proto ra metric 1024 expires 1498sec hoplimit 64 pref medium 
+
 ```
-We can see again that these route preferences are as well annotated with their corresponding PvD name.
+In the above routing table, we can as well notice that the defualt router preference to that sends out RAs containing pvd test2.example.com is set to low. This router preference is actually overwriten by the RA header embeded in PvD option when A-flag is set.
 
 ### Capture RA with PvD option with Wireshark
 <!TODO>
