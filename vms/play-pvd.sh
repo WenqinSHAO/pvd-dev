@@ -104,7 +104,7 @@ function network_setup {
     sudo brctl addif brpvd brif1
     sudo brctl addif brpvd brif2
     sudo brctl addif brpvd brif3
-    sudo brctl addif brpvd brif3
+    sudo brctl addif brpvd brif4
     # add the other side the veth pair to corresponding network namespaces
     sudo ip link set eh0 netns host_pvd
     sudo ip link set eh1 netns host_classic
