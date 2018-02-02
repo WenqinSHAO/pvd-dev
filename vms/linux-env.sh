@@ -37,7 +37,7 @@ UBUNTU_KERNEL_GIT=git://kernel.ubuntu.com/ubuntu/ubuntu-zesty.git
 # where we put the kernel source code
 KERNEL_SRC_DIR=$ROOT/src/linux-env/
 # where we put the kernel patch
-KERNEL_PATCH_DIR=$ROOT/src/pvd-kernel-path/
+KERNEL_PATCH_DIR=$ROOT/src/pvd-kernel-patch/
 # the default kernel local version after patching
 KERNEL_LOCAL_VERSION="thierry-pvd"
 
@@ -76,7 +76,7 @@ function patch_kernel {
 	if [ ! -d $KERNEL_PATCH_DIR ]; then
 		mkdir -p $KERNEL_PATCH_DIR
 		git clone $PVD_KERNEL_PATCH $KERNEL_PATCH_DIR
-	elif scl_askyn "Kernel patch already exists in $KERNEL_PATCH_DIR, do you want to enforce the new one?"; then
+	elif scl_askyn "Kernel patch already exists in $KERNEL_PATCH_DIR, [Y] for fetch from git repo [N] for use current patch"; then
 		rm -rf $KERNEL_PATCH_DIR
 		mkdir -p $KERNEL_PATCH_DIR
 		git clone $PVD_KERNEL_PATCH $KERNEL_PATCH_DIR
