@@ -39,7 +39,7 @@ KERNEL_SRC_DIR=$ROOT/src/linux-env/
 # where we put the kernel patch
 KERNEL_PATCH_DIR=$ROOT/src/pvd-kernel-patch/
 # the default kernel local version after patching
-KERNEL_LOCAL_VERSION="thierry-pvd"
+KERNEL_LOCAL_VERSION="pvd-container-replace"
 
 # VM setting
 PRESEED_FILE=$CD/preseed.cfg
