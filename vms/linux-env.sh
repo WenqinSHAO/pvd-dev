@@ -39,16 +39,14 @@ KERNEL_SRC_DIR=$ROOT/src/linux-env/
 # where we put the kernel patch
 KERNEL_PATCH_DIR=$ROOT/src/pvd-kernel-patch/
 # the default kernel local version after patching
-KERNEL_LOCAL_VERSION="pvd-container-replace"
+KERNEL_LOCAL_VERSION="pvd-container-conflict-replace"
 
 # VM setting
 PRESEED_FILE=$CD/preseed.cfg
 PRESEED_CUSTOM_FILE=$CD/preseed-custom.cfg
 
 # where to fetch path and other pvd related projects
-PVD_KERNEL_PATCH=https://github.com/IPv6-mPvD/pvd-linux-kernel-patch.git
-PVD_RADVD=https://github.com/IPv6-mPvD/radvd.git
-PVD_PVDD=https://github.com/IPv6-mPvD/pvdd.git
+PVD_KERNEL_PATCH=https://github.com/WenqinSHAO/pvd-linux-kernel-patch.git
 
 scl_cmd_add install dep install_dep
 function install_dep {
@@ -64,6 +62,7 @@ function download_kernel {
 	if [ ! -d $KERNEL_SRC_DIR/linux-ubuntu ]; then
 		mkdir -p $KERNEL_SRC_DIR
 		git clone $UBUNTU_KERNEL_GIT $KERNEL_SRC_DIR/linux-ubuntu
+		git checkout ubuntu-zesty
 	else
 		scl_askyn "Kernel source repo already exist, do you want to clean it?" && clean_kernel
 	fi
