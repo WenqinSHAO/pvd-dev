@@ -113,7 +113,7 @@ KERNEL_SRC_DIR=$ROOT/src/linux-env/
 # where we put the kernel patch
 KERNEL_PATCH_DIR=$ROOT/src/pvd-kernel-path/
 # the default kernel local version after patching
-KERNEL_LOCAL_VERSION="thierry-pvd"
+KERNEL_LOCAL_VERSION="pvd-container-conflict-replace"
 ```
 ### VM settings
 As mentioned earlier, we are going to creat a VM on which the mPvD related experiments can be carried out. The specs of the VM can as well be customized according to your needs and constraints in [linux-env.sh](./vms/linux-env.sh). Here below the default values.
@@ -179,7 +179,7 @@ Meantime, let's have a quick look at what does this kernel patch actually bring:
 1. It first modifies the IPv6 neighbour discovery option parser behaviour, so that it can understand what happens inside a PvD option. This PvD parsing behaviour can be easily turn on/off via option net.ipv6.conf.<interface>.parse_pvd in sysctl. The default value is 1, which means on.
 2. TODO: describe the RA parsing behaviour here. Note that when parse_pvd is truned off, the kernel just skipps the PvD option in RA as unpactched kernel will do.
 3. When applying learnt ND6 options in RAs, the patch associates prefixes, routes, etc. to the corresponding PvD.
-4. New rtnetlink messages are added so that userspace can be aware of the PvD information update.
+4. (TODO: detail better what Thierry has done) New rtnetlink messages are added so that userspace can be aware of the PvD information update.
 
 
 Once kernel building finished, generated linux-.*.deb shall sit in $your_project_directory/src/linux-env/
@@ -319,6 +319,8 @@ These configuered RA can be sent with the following command:
 ```
 
 ### Inspect network settings
+TODO: modify the output according to the new parsing behaviour
+
 Once RAs are sent, it is time to inspect whether the hosts are correctly provisioned in this multiple-prefix environment.
 We provide _show_ option as a shorthand to inspect network configurations in certain network namespaces.
 ```
