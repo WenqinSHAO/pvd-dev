@@ -18,6 +18,7 @@ DIR_IPROUTE="$ROOT/iproute"
 DIR_RADVD="$ROOT/radvd"
 
 LINK_IPROUTE=https://github.com/IPv6-mPvD/iproute2.git
+# TODO: change to the official repo once pull request accepted
 LINK_RADVD=https://github.com/WenqinSHAO/radvd.git
 
 scl_cmd_add install dep install_dep

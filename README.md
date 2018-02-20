@@ -158,16 +158,20 @@ The whole thing can take a while.
 Don't sit there waiting, let's start preparing a PvD-aware kernel.
 
 ### PvD-aware kernel patch
-<!TODO: should the installation of PvD-aware glibc happen here as well?>
-
 While the VM is installing, let's download the kernel source code:
 ```shell
 ./vms/linux-env.sh kernel download
 ```
 
-Once finished, let's patch the kernel source:
+Once finished, let's patch the kernel source.
+There are two kernel patch branches implementing two slightly different PvD parsing behaviour:
+1. the default branch is _pvd-draft-01-sequential_, it implements the sequential parsing behaviour. ND6 options in PvD will be handled sequentially (as if the PvD option header were not there) along with ND6 options outside the PvD. For two RIOs toward a same destination prefixes yet with different priority, the one appears later in the RA message (not matter inside or outside PvD) will eventually be considerded by the kernel. The only expection is for RA header (when a flag set) and other ND6 options with no more than 1 presence, e.g. MTU. These settings in PvD will be eventually effective and overwrite those outside the PvD. To apply this branch:
 ```shell
 ./vms/linux-env.sh kernel patch
+```
+2. the other branch is called _pvd-draft-01-conflict-replace_. This branch priorities all the info (RA header if present + ND6 options) in PvD. That is for RIOs toward a same destination prefix, the last one present in the PvD option counts. Therefore, it behaves equivalently as if the PvD option is the last ND6 option in sequential parsing. To apply this branch:
+```shell
+./vms/linux-env.sh kernel patch replace
 ```
 
 Then, let's compile the kernel and build .deb packages needed for kernel installation.
@@ -176,9 +180,9 @@ Then, let's compile the kernel and build .deb packages needed for kernel install
 ```
 This will take quite a while.
 Meantime, let's have a quick look at what does this kernel patch actually bring:
-1. It first modifies the IPv6 neighbour discovery option parser behaviour, so that it can understand what happens inside a PvD option. This PvD parsing behaviour can be easily turn on/off via option net.ipv6.conf.<interface>.parse_pvd in sysctl. The default value is 1, which means on.
-2. TODO: describe the RA parsing behaviour here. Note that when parse_pvd is truned off, the kernel just skipps the PvD option in RA as unpactched kernel will do.
-3. When applying learnt ND6 options in RAs, the patch associates prefixes, routes, etc. to the corresponding PvD.
+1. It first modifies the IPv6 neighbour discovery option parser behaviour, so that it can understand what happens inside a PvD option. 
+2. This PvD parsing behaviour can be easily turn on/off via option _net.ipv6.conf.<interface>.parse_pvd_ in sysctl. The default value is 1, which means on. This option is only effective when the interface accepts RA, that is _net.ipv6.conf.<interface>.accept_ra=1_.
+3. When applying learnt ND6 options in RAs, the patched kernel associates prefixes, routes, etc. to the corresponding PvD.
 4. (TODO: detail better what Thierry has done) New rtnetlink messages are added so that userspace can be aware of the PvD information update.
 
 
@@ -335,16 +339,18 @@ For example, the following command shows the IPv6 addresses configred in __host\
 ```
 With the RAs defined in [2pvd_1normal.conf](./ra_config/2pvd_1normal.conf), you would proabably see outputs like this:
 ```shell
-7: eh0@if6: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 state UP qlen 1000
-    inet6 2001:db8:2:0:3ca5:b0ff:fef5:2697/64 scope global mngtmpaddr dynamic 
-       valid_lft 2032sec preferred_lft 1008sec pvd test2.example.com. 
-    inet6 2001:db8:3:0:3ca5:b0ff:fef5:2697/64 scope global mngtmpaddr dynamic 
-       valid_lft 2032sec preferred_lft 1008sec 
-    inet6 2001:db8:1:beef:3ca5:b0ff:fef5:2697/64 scope global mngtmpaddr dynamic 
-       valid_lft 86400sec preferred_lft 14400sec pvd test1.example.com. 
-    inet6 2001:db8:1:abcd:3ca5:b0ff:fef5:2697/64 scope global mngtmpaddr dynamic 
-       valid_lft 86400sec preferred_lft 14400sec pvd test1.example.com. 
-    inet6 fe80::3ca5:b0ff:fef5:2697/64 scope link 
+6: eh0@if5: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 state UP qlen 1000
+    inet6 2001:db8:1:beef:f87f:b4ff:fe76:5e7/64 scope global mngtmpaddr dynamic 
+       valid_lft 86283sec preferred_lft 14283sec pvd test1.example.com. 
+    inet6 2001:db8:1:abcd:f87f:b4ff:fe76:5e7/64 scope global mngtmpaddr dynamic 
+       valid_lft 86283sec preferred_lft 14283sec pvd test1.example.com. 
+    inet6 2001:db8:1:0:f87f:b4ff:fe76:5e7/64 scope global mngtmpaddr dynamic 
+       valid_lft 1910sec preferred_lft 886sec pvd test1.example.com. 
+    inet6 2001:db8:2:0:f87f:b4ff:fe76:5e7/64 scope global mngtmpaddr dynamic 
+       valid_lft 1910sec preferred_lft 886sec pvd test2.example.com. 
+    inet6 2001:db8:3:0:f87f:b4ff:fe76:5e7/64 scope global mngtmpaddr dynamic 
+       valid_lft 1910sec preferred_lft 886sec 
+    inet6 fe80::f87f:b4ff:fe76:5e7/64 scope link 
        valid_lft forever preferred_lft forever 
 ```
 We can see that the automatically configured interface addresses are now annotated with the pvd name that RA message (in which the PIO is found) associates to.
@@ -355,18 +361,19 @@ For hosts that enable as well router preference, they are aware of:
  
 For example in [2pvd_1normal.conf](./ra_config/2pvd_1normal.conf), traffic toward 2001:1a00::/40 should prefer the router interface sending out RA containing PvD test1.example.com. This preference for router interface is demonstrated in __host\_pvd__ routing table:
 ```shell
-2001:db8:1:abcd::/64 dev eh0 proto kernel metric 256 expires 86398sec pref medium pvd test1.example.com. 
-2001:db8:1:beef::/64 dev eh0 proto kernel metric 256 expires 86398sec pref medium pvd test1.example.com. 
-2001:db8:2::/64 dev eh0 proto kernel metric 256 expires 2014sec pref medium pvd test2.example.com. 
-2001:db8:3::/64 dev eh0 proto kernel metric 256 expires 2014sec pref medium 
-2001:db8:1a00::/40 via fe80::ac0e:deff:fe30:8b22 dev eh0 proto ra metric 1024 pref high pvd test1.example.com. 
-2001:db8:1b00::/40 via fe80::ac0e:deff:fe30:8b22 dev eh0 proto ra metric 1024 pref high pvd test1.example.com. 
-2001:db8:2000::/48 via fe80::d8a1:e6ff:fe3d:8a6e dev eh0 proto ra metric 1024 pref high pvd test2.example.com. 
-2001:db8:3000::/40 via fe80::f4d7:79ff:fe5c:4626 dev eh0 proto ra metric 1024 pref high 
+2001:db8:1::/64 dev eh0 proto kernel metric 256 expires 1898sec pref medium pvd test1.example.com. 
+2001:db8:1:abcd::/64 dev eh0 proto kernel metric 256 expires 86271sec pref medium pvd test1.example.com. 
+2001:db8:1:beef::/64 dev eh0 proto kernel metric 256 expires 86271sec pref medium pvd test1.example.com. 
+2001:db8:2::/64 dev eh0 proto kernel metric 256 expires 1898sec pref medium pvd test2.example.com. 
+2001:db8:3::/64 dev eh0 proto kernel metric 256 expires 1898sec pref medium 
+2001:db8:1000::/40 via fe80::1cdc:b4ff:feab:c7c2 dev eh0 proto ra metric 1024 pref low pvd test1.example.com. 
+2001:db8:1a00::/40 via fe80::1cdc:b4ff:feab:c7c2 dev eh0 proto ra metric 1024 pref high pvd test1.example.com. 
+2001:db8:2000::/48 via fe80::ac30:ffff:feb4:f502 dev eh0 proto ra metric 1024 pref high pvd test2.example.com. 
+2001:db8:3000::/40 via fe80::4d0:8fff:fe61:1578 dev eh0 proto ra metric 1024 pref high 
 fe80::/64 dev eh0 proto kernel metric 256 pref medium 
-default via fe80::d8a1:e6ff:fe3d:8a6e dev eh0 proto ra metric 1024 expires 65533sec hoplimit 64 pref low pvd test2.example.com. 
-default via fe80::ac0e:deff:fe30:8b22 dev eh0 proto ra metric 1024 expires 65533sec hoplimit 64 pref medium pvd test1.example.com. 
-default via fe80::f4d7:79ff:fe5c:4626 dev eh0 proto ra metric 1024 expires 1498sec hoplimit 64 pref medium 
+default via fe80::4d0:8fff:fe61:1578 dev eh0 proto ra metric 1024 expires 1371sec hoplimit 64 pref medium 
+default via fe80::ac30:ffff:feb4:f502 dev eh0 proto ra metric 1024 expires 65406sec hoplimit 64 pref low pvd test2.example.com. 
+default via fe80::1cdc:b4ff:feab:c7c2 dev eh0 proto ra metric 1024 expires 65406sec hoplimit 64 pref medium pvd test1.example.com. 
 
 ```
 In the above routing table, we can as well notice that the defualt router preference to that sends out RAs containing pvd test2.example.com is set to low. This router preference is actually overwriten by the RA header embeded in PvD option when A-flag is set.
