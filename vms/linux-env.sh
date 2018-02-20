@@ -46,6 +46,7 @@ PRESEED_FILE=$CD/preseed.cfg
 PRESEED_CUSTOM_FILE=$CD/preseed-custom.cfg
 
 # where to fetch path and other pvd related projects
+# TODO: change to the official repo once pull request accepted
 PVD_KERNEL_PATCH=https://github.com/WenqinSHAO/pvd-linux-kernel-patch.git
 
 scl_cmd_add install dep install_dep
@@ -80,6 +81,16 @@ function patch_kernel {
 		mkdir -p $KERNEL_PATCH_DIR
 		git clone $PVD_KERNEL_PATCH $KERNEL_PATCH_DIR
 	fi
+
+	# switch to the right branch
+	# the default one implements sequential parsing behaviour
+	local branch='pvd-draft-01-sequential'
+	if [[ ! -z $1 &&  $1 = *'replace'* ]]; then
+		branch="pvd-draft-01-conflict-replace"
+	fi
+	cd $KERNEL_PATCH_DIR
+	git checkout $branch 
+
 	# then patch
 	if [ -d $KERNEL_SRC_DIR/linux-ubuntu ]; then
 		clean_kernel
@@ -108,6 +119,7 @@ scl_cmd_add kernel config configure_kernel
 function configure_kernel {
 	# this function configures the kernel
 	# it seems the kernel config can be already done with proper kernel patch?
+	# Yes if the patch adds .config file, add set it correctly
 	cd $KERNEL_SRC_DIR/linux-ubuntu
 	if [ -f .config ]; then
 		echo "Set local kernel version to $KERNEL_LOCAL_VERSION and enable pvd"
@@ -137,6 +149,7 @@ function build_kernel {
 scl_cmd_add kernel compile compile_kernel
 function compile_kernel {
 	# this function downloads the kernel source and compile it right away
+	# deprecated
 	if [ ! -d $KERNEL_SRC_DIR/linux-ubuntu ]; then
 		mkdir -p $KERNEL_SRC_DIR
 		git clone $UBUNTU_KERNEL_GIT $KERNEL_SRC_DIR/linux-ubuntu
