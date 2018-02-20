@@ -47,7 +47,7 @@ function install_radvd {
         fi
         cd $ROOT
     else
-        if [-f $DIR_RADVD/radvd]; then
+        if [ -f $DIR_RADVD/radvd ]; then
             echo "PvD-aware radvd is already installed in $DIR_RADVD."
         else
             sudo rm -rf $DIR_RADVD
