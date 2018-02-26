@@ -122,7 +122,7 @@ function network_setup {
     sudo ip netns exec host_pvd ip link set eh0 up
     sudo ip netns exec host_pvd ip link set dev lo up
     sudo ip netns exec host_classic ip link set eh1 up
-    sduo ip netns exec host_classic ip link set dev lo up
+    sudo ip netns exec host_classic ip link set dev lo up
     sudo ip netns exec router ip link set rt0 up
     sudo ip netns exec router ip link set rt1 up
     sudo ip netns exec router ip link set rt2 up
