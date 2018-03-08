@@ -126,6 +126,17 @@ function network_setup {
     sudo ip netns exec router ip link set rt0 up
     sudo ip netns exec router ip link set rt1 up
     sudo ip netns exec router ip link set rt2 up
+    sudo ip netns exec router ip link set dev lo up
+    sudo ip netns exec router ip link add dev dummy0 type dummy
+    sudo ip netns exec router ip addr add 2001:1111:1111::8888/128 dev dummy0
+    sudo ip netns exec router ip addr add 2001:1111:1111::8844/128 dev dummy0
+    sudo ip netns exec router ip addr add 2001:2222:2222::2/128 dev dummy0
+    sudo ip netns exec router ip link set dev dummy0 up
+    sudo ip netns exec router ip route add 2001:db8:1::/64 dev rt0
+    sudo ip netns exec router ip route add 2001:db8:1:beef::/64 dev rt0
+    sudo ip netns exec router ip route add 2001:db8:1:abcd::/64 dev rt0
+    sudo ip netns exec router ip route add 2001:db8:2::/64 dev rt1
+    sudo ip netns exec router ip route add 2001:db8:3::/64 dev rt2
     # disable RA acceptance on router interfaces
     sudo ip netns exec router sysctl -w net.ipv6.conf.rt0.accept_ra=0
     sudo ip netns exec router sysctl -w net.ipv6.conf.rt1.accept_ra=0
