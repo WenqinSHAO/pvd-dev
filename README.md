@@ -164,15 +164,16 @@ While the VM is installing, let's download the kernel source code:
 ```
 
 Once finished, let's patch the kernel source.
-There are two kernel patch branches implementing two slightly different PvD parsing behaviour:
-1. the default branch is _pvd-draft-01-sequential_, it implements the sequential parsing behaviour. ND6 options in PvD will be handled sequentially (as if the PvD option header were not there) along with ND6 options outside the PvD. For two RIOs toward a same destination prefixes yet with different priority, the one appears later in the RA message (not matter inside or outside PvD) will eventually be considerded by the kernel. The only expection is for RA header (when a flag set) and other ND6 options with no more than 1 presence, e.g. MTU. These settings in PvD will be eventually effective and overwrite those outside the PvD. To apply this branch:
+<!--There are two kernel patch branches implementing two slightly different PvD parsing behaviour:
+1. the default branch is _pvd-draft-01-sequential_, it implements the sequential parsing behaviour. ND6 options in PvD will be handled sequentially (as if the PvD option header were not there) along with ND6 options outside the PvD. For two RIOs toward a same destination prefixes yet with different priority, the one appears later in the RA message (not matter inside or outside PvD) will eventually be considerded by the kernel. The only expection is for RA header (when a flag set) and other ND6 options with no more than 1 presence, e.g. MTU. These settings in PvD will be eventually effective and overwrite those outside the PvD. To apply this branch: -->
 ```shell
 ./vms/linux-env.sh kernel patch
 ```
-2. the other branch is called _pvd-draft-01-conflict-replace_. This branch priorities all the info (RA header if present + ND6 options) in PvD. That is for RIOs toward a same destination prefix, the last one present in the PvD option counts. Therefore, it behaves equivalently as if the PvD option is the last ND6 option in sequential parsing. To apply this branch:
+<!-- 2. the other branch is called _pvd-draft-01-conflict-replace_. This branch priorities all the info (RA header if present + ND6 options) in PvD. That is for RIOs toward a same destination prefix, the last one present in the PvD option counts. Therefore, it behaves equivalently as if the PvD option is the last ND6 option in sequential parsing. To apply this branch:
 ```shell
 ./vms/linux-env.sh kernel patch replace
 ```
+-->
 
 Then, let's compile the kernel and build .deb packages needed for kernel installation.
 ```shell
@@ -180,11 +181,12 @@ Then, let's compile the kernel and build .deb packages needed for kernel install
 ```
 This will take quite a while.
 Meantime, let's have a quick look at what does this kernel patch actually bring:
-1. It first modifies the IPv6 neighbour discovery option parser behaviour, so that it can understand what happens inside a PvD option. 
+1. It first modifies the IPv6 neighbour discovery option parser behaviour, so that it can understand what happens inside a PvD option. The parsing of an RA containing PvD that contains other RA options remains sequential, just as the original kernel parsing behaviour. More specifically ND6 options in PvD will be handled sequentially (as if the PvD option header were not there) along with ND6 options outside the PvD. For example, if we have two RIOs toward a same destination prefixes yet with different priority, the one appears later in the RA message (not matter inside or outside PvD) will eventually be considerded by the kernel. The only expection is RA header (when a flag set) and other ND6 options with no more than 1 presence, e.g. MTU. These settings in PvD will be eventually effective and overwrite those outside the PvD. 
 2. This PvD parsing behaviour can be easily turn on/off via option _net.ipv6.conf.<interface>.parse_pvd_ in sysctl. The default value is 1, which means on. This option is only effective when the interface accepts RA, that is _net.ipv6.conf.<interface>.accept_ra=1_.
 3. When applying learnt ND6 options in RAs, the patched kernel associates prefixes, routes, etc. to the corresponding PvD.
-4. (TODO: detail better what Thierry has done) New rtnetlink messages are added so that userspace can be aware of the PvD information update.
-
+4. New RTNETLINK messages are defined for the anouncements of PvD creation, attributes updates, etc.
+5. New getsockopt/setsockopt options are defined to allow the query and modification of PvD datastructure from userspace. 
+6. A process/thread/socket can be bound to a specific PvD (via setsockopt), while obliges the kernel making consistent route and saddr selection.
 
 Once kernel building finished, generated linux-.*.deb shall sit in $your_project_directory/src/linux-env/
 
