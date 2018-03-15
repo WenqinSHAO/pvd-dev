@@ -19,7 +19,7 @@ DIR_RADVD="$ROOT/radvd"
 
 LINK_IPROUTE=https://github.com/IPv6-mPvD/iproute2.git
 # TODO: change to the official repo once pull request accepted
-LINK_RADVD=https://github.com/WenqinSHAO/radvd.git
+LINK_RADVD=https://github.com/IPv6-mPvD/radvd.git
 
 scl_cmd_add install dep install_dep
 function install_dep {
@@ -127,11 +127,13 @@ function network_setup {
     sudo ip netns exec router ip link set rt1 up
     sudo ip netns exec router ip link set rt2 up
     sudo ip netns exec router ip link set dev lo up
+    # TCP UDP server listens on these addresses on the dummy interface
     sudo ip netns exec router ip link add dev dummy0 type dummy
     sudo ip netns exec router ip addr add 2001:1111:1111::8888/128 dev dummy0
     sudo ip netns exec router ip addr add 2001:1111:1111::8844/128 dev dummy0
     sudo ip netns exec router ip addr add 2001:2222:2222::2/128 dev dummy0
     sudo ip netns exec router ip link set dev dummy0 up
+    # these static routes need to be changed in accordance to RA announces
     sudo ip netns exec router ip route add 2001:db8:1::/64 dev rt0
     sudo ip netns exec router ip route add 2001:db8:1:beef::/64 dev rt0
     sudo ip netns exec router ip route add 2001:db8:1:abcd::/64 dev rt0
@@ -141,12 +143,14 @@ function network_setup {
     sudo ip netns exec router sysctl -w net.ipv6.conf.rt0.accept_ra=0
     sudo ip netns exec router sysctl -w net.ipv6.conf.rt1.accept_ra=0
     sudo ip netns exec router sysctl -w net.ipv6.conf.rt2.accept_ra=0
+    # turn on/off pvd parsing and route pref option on host
     sudo ip netns exec host_pvd sysctl -w net.ipv6.conf.eh0.parse_pvd=1
     sudo ip netns exec host_pvd sysctl -w net.ipv6.conf.eh0.accept_ra_rtr_pref=1
     sudo ip netns exec host_pvd sysctl -w net.ipv6.conf.eh0.accept_ra_rt_info_max_plen=64
     sudo ip netns exec host_classic sysctl -w net.ipv6.conf.eh1.parse_pvd=0
     sudo ip netns exec host_classic sysctl -w net.ipv6.conf.eh1.accept_ra_rtr_pref=1
     sudo ip netns exec host_classic sysctl -w net.ipv6.conf.eh1.accept_ra_rt_info_max_plen=64
+    # turn of ra acceptance on bridge interface
     sudo sysctl -w net.ipv6.conf.brpvd.accept_ra=0
     sudo sysctl -w net.ipv6.conf.brif0.accept_ra=0
     sudo sysctl -w net.ipv6.conf.brif1.accept_ra=0
@@ -158,7 +162,7 @@ function network_setup {
 scl_cmd_add cleanup network_reset
 function network_reset {
     # it seems deleting the network namespace will as well delete the contaning devices
-    # see if we can remove all the turn down intf and delete part
+    # TODO: bug fix needed in cleanup
     sudo ip netns exec router ip link set rt0 down 2>&1 || true
     sudo ip netns exec router ip link set rt1 down 2>&1 || true
     sudo ip netns exec router ip link set rt2 down 2>&1 || true

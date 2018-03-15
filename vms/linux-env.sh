@@ -47,7 +47,7 @@ PRESEED_CUSTOM_FILE=$CD/preseed-custom.cfg
 
 # where to fetch path and other pvd related projects
 # TODO: change to the official repo once pull request accepted
-PVD_KERNEL_PATCH=https://github.com/WenqinSHAO/pvd-linux-kernel-patch.git
+PVD_KERNEL_PATCH=https://github.com/IPv6-mPvD/pvd-linux-kernel-patch.git
 
 scl_cmd_add install dep install_dep
 function install_dep {
@@ -84,10 +84,10 @@ function patch_kernel {
 
 	# switch to the right branch
 	# the default one implements sequential parsing behaviour
-	local branch='pvd-draft-01-sequential'
-	if [[ ! -z $1 &&  $1 = *'replace'* ]]; then
-		branch="pvd-draft-01-conflict-replace"
-	fi
+	local branch='pvd-draft-01'
+	# if [[ ! -z $1 &&  $1 = *'replace'* ]]; then
+	#	branch="pvd-draft-01-conflict-replace"
+	# fi
 	cd $KERNEL_PATCH_DIR
 	git checkout $branch 
 
