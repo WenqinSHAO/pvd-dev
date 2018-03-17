@@ -432,7 +432,7 @@ With this patch, up on a getaddrinfo call from an application, glibc will
 In the tests folder of our [glibc](https://github.com/IPv6-mPvD/glibc) repo, we provide as well multiple examples to showcase the name resolutin under PvD binding.
 
 ### pvdd and NEAT
-[NEAT](https://www.neat-project.org) offers to applications a rich set of descriptions on the network services, such as pricing, instant performance, etc, in the purpose of encoraging innovations across protocol stacks.
+[NEAT](https://www.neat-project.org) is a new [API](https://github.com/neat-project/neat) for internet transport that offers selection services and fallback mechanism to applications. NEAT Applications can make metadata based selection requests when forming transport connections, offering to applications a rich set of descriptions about network services, such as pricing, capacity, latency, etc, in the purpose of encoraging innovations across protocol stacks.
 
 In multi-homed IPv6 networks provisioned with PvDs in RA, an important source of network service infromation is thus pvdd that is presented here above.
 In order to wire NEAT and pvdd together, [a http server](https://github.com/IPv6-mPvD/pvd-demo/blob/master/pvd-html-client/pvdHttpServer.js) is put in place to expose a series of REST APIs and a web page for the query of PvDs and their attributes.
