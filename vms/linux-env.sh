@@ -30,7 +30,7 @@ VM_VNC_PORT=12250
 VM_MNGMT_PORT=12350
 
 # where to fetch the installation image for ubuntu
-UBUNTU_ISO=http://archive.ubuntu.com/ubuntu/dists/zesty/main/installer-amd64/current/images/netboot/mini.iso
+UBUNTU_ISO=http://archive.ubuntu.com/ubuntu/dists/artful/main/installer-amd64/current/images/netboot/mini.iso
 UBUNTU_MIRROR=""
 UBUNTU_KERNEL_GIT=git://kernel.ubuntu.com/ubuntu/ubuntu-zesty.git
 
