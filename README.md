@@ -9,6 +9,7 @@ Table of Contents
 =================
 
 * [Multi\-PvD Development Environment](#multi-pvd-development-environment)
+* [Table of Contents](#table-of-contents)
   * [Warmup/Revision:](#warmuprevision)
   * [VM setting and kernel patching](#vm-setting-and-kernel-patching)
     * [Repository organization](#repository-organization)
@@ -25,8 +26,12 @@ Table of Contents
     * [Install iproute2](#install-iproute2)
     * [Send RAs](#send-ras)
     * [Inspect network settings](#inspect-network-settings)
-    * [Capture RA with PvD option with Wireshark](#capture-ra-with-pvd-option-with-wireshark)
-
+    * [pvdd](#pvdd)
+    * [Fetching extra\-info](#fetching-extra-info)
+    * [pvd\-aware glibc](#pvd-aware-glibc)
+    * [pvdd and NEAT](#pvdd-and-neat)
+    * [Wireshark dissector](#wireshark-dissector)
+  * [The whole picture](#the-whole-picture)
 ## Warmup/Revision:
 If you know the answers to the following questions, please do skip this section ;)
 
@@ -380,10 +385,101 @@ default via fe80::1cdc:b4ff:feab:c7c2 dev eh0 proto ra metric 1024 expires 65406
 ```
 In the above routing table, we can as well notice that the defualt router preference to that sends out RAs containing pvd test2.example.com is set to low. This router preference is actually overwriten by the RA header embeded in PvD option when A-flag is set.
 
-### Capture RA with PvD option with Wireshark
-<!TODO>
+### pvdd
+[pvdd](https://github.com/IPv6-mPvD/pvdd.git) is an userspace application that needs to be run on the host side.
+```
+$ sudo ip netns exec host_pvd pvdd -v
+```
 
-### pvdd and glibc
-<!TODO>
+It is the entry-point for PvD-aware applications to learn PvD-related information.
+pvdd gathers and maintains pvd related information from various sources, for example kernel, the HTTPs server for extra-info (more in the section [Fetching extra-info](#fetching-extra-info)).
+It learns about PvD from kernel via subscribing to rtnetlink updates.
+Meantime, it listens to and receives messages on tcp 10101 of localhost (default port can be changed) and reactes to these commands.
+For example, in order to query all the available PvDs on a host, we can do:
+```shell
+$ echo PVD_GET_LIST | sudo ip netns exec host_pvd nc -N 127.0.0.1 10101
+PVD_LIST fe80:0000:0000:0000:704b:7dff:fe02:c762%eh0 test2.example.com. test1.example.com.
+```
+For the complete list of messages and operations supported by pvdd, we invite you to have a look at look at the [pvdd](https://github.com/IPv6-mPvD/pvdd.git) README.
+
+In order to faciliate the dev of PvD-aware application, pvdd project as well provides a shared library (libpvd.so in pvdd/src/obj/ after make), which wraps the above TCP messaging mechnism into synchronous and asynchronous function calls. For a complete list of avaiable functions, please have a look at [libpvd.h](https://github.com/IPv6-mPvD/pvdd/blob/master/include/libpvd.h). 
+The pvdd/tests/ folder provides examples on how to use these functions.
+
+Apart from the above exchanges with pvdd, libpvd.so as well wraps the getsockopt/setsockopt calls towards the kernel. 
+With these functions, a socket/thread/process can be bound to a specified PvD.
+
+### Fetching extra-info
+According to the [draft](https://github.com/IPv6-mPvD/mpvd-ietf-drafts/blob/master/draft-ietf-intarea-provisioning-domains.txt) on provisioning multiple PvDs, when the H-flag of the PvD ID Option is set, hosts MAY attempt to retrieve the additional attributes associated with a given PvD
+by performing an HTTP over TLS GET query to https://<PvD-ID>/.well-known/pvd-id 
+
+This task is NOT directly perfomed by pvdd. A supplementary tool called [pvd-monitor](https://github.com/IPv6-mPvD/pvdd/tree/master/utils) is offered in the pvdd project for this task.
+pvd-monitor subscribtes to PvD notifications from pvdd. 
+Once a PvD with H-flag set is observered, it performs HTTPS queries to fetch the additional attributes.
+Finally, it updates the pvdd with the retrived extra-info.
+With pvd-monitor, pvdd is eventually populated with all the information concerning a PvD, and thus is capable of serving as the only entry point for applications to learn about PvDs.
+
+### pvd-aware glibc 
+Provisioning hosts with multiple PvDs obliges as well that hosts perform name resolution with consistent provisioning information, i.e. send out the query towards the name server, using the source address and routes learnt within a same PvD.
+
+The consistent usage of source address and route is implemented by the kernel patch.
+As for the selection of name server, we bring forth a patch for [glibc](https://github.com/IPv6-mPvD/glibc).
+
+With this patch, up on a getaddrinfo call from an application, glibc will
+1. find out to which PvD the socket/thread/process is bound to through the getsockopt call wraped by libpvd.so/libpvd.h;
+2. then it connects to pvdd to retrivel the list of rdnss lists attached to this PvD;
+3. make name queries to the servers and reley the responds to the application.
+
+In the tests folder of our [glibc](https://github.com/IPv6-mPvD/glibc) repo, we provide as well multiple examples to showcase the name resolutin under PvD binding.
+
+### pvdd and NEAT
+[NEAT](https://www.neat-project.org) offers to applications a rich set of descriptions on the network services, such as pricing, instant performance, etc, in the purpose of encoraging innovations across protocol stacks.
+
+In multi-homed IPv6 networks provisioned with PvDs in RA, an important source of network service infromation is thus pvdd that is presented here above.
+In order to wire NEAT and pvdd together, [a http server](https://github.com/IPv6-mPvD/pvd-demo/blob/master/pvd-html-client/pvdHttpServer.js) is put in place to expose a series of REST APIs and a web page for the query of PvDs and their attributes.
+
+PvD-unaware but NEAT enabled hosts can thus talk to the above http server that is setup on a PvD-aware host to learn the full set of information conveyed in RA, along with other valude-added metrics.
+
+### Wireshark dissector 
+Last of not least, [Wireshark](https://github.com/IPv6-mPvD/wireshark.git) is as well made capable of parsing RA's containing PvD options.
+
+## The whole picture
+```+------------------------------------------------------------------------------------------+
+|A PvD-aware Linux host                                                                    |
+|                                                                                          |
+|                                                                                          |
+|      +-----------------------------------------------------+                             |
+|      |                         APP                         |                             |
+|      +----------------+------------------------------------+                             |
+|  pvd binding          |        learn PvDs          |learn PvDs and other stuff           |
+|         |             |            |       +---------------+                             |
+|         |             |            |       |     NEAT      |                             |
+|         |        name resolv       |       +-------+-------+                             |
+|         |             |            |               |                                     |          +-----------------------------+
+|         |       +-----+-------+    |       +-------+-------+                             |          | A non-PvD aware host        |
+|         |       |    glibc    |    |       | PvdHttpServer +----------------------------------------+ NEAT                        |
+|         |       +--+-------+--+    |       +-------+-------+                             |          +-----------------------------+
+|         |          |       |       |               |                                     |
+|         |          |    +--+-------+---------------+-------+       +----------------+    |          +-----------------------------+
+|         |          |    |               pvdd               +-------+   pvd|monitor  +---------------+ pvd additional info server  |
+|         |          |    +-----------------+----------------+       +----------------+    |          | (capti^e portal, perf, etc) |
+|         |          |                      |                                              |          +-----------------------------+
++------------------------------------------------------------------------------------------+
+|         +          +                      +                                              |
+|                                                                                          |
+|                                          kernel                                          |
+|                                                                                          |
++--------------------------------------------+---------------------------------------------+
+                                             |
+                                             |
+                                             |                         +--------------+
+                                             |RA with PvD+-------------+  wireshark   |
+                                             |                         +--------------+
+                                             |
+                                    +--------+---------+
+                                    |   radvd/odhcpd   |
+                                    +------------------+
+```
+
+
 
 
