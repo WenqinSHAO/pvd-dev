@@ -6,6 +6,7 @@ from filelock import FileLock, Timeout
 OPER_DIR = "/tmp"
 NEIGHBOURS_LOCK_FILE = OPER_DIR + "/neighbours.lock"
 NEIGHBOURS_FILE = OPER_DIR + "/neighbours.json"
+DOWNSTREAM_IF="test_br"
 
 def read_neighbours():
     result=subprocess.Popen(['ip', 'neighbor'], stdout=subprocess.PIPE).stdout.read()    
@@ -13,8 +14,10 @@ def read_neighbours():
     neighbours = list()
     # each neighbour is on a new line
     for neighbour in map(lambda x : x.split(), resultStr.split("\n")):
-        if len(neighbour) < 5:
+        # if it doesn't match the format, or it isn't a neighbour we care about, skip it.
+        if len(neighbour) < 5 or neighbour[2] != DOWNSTREAM_IF:
             continue
+        # ip           device        mac
         # 10.0.2.2 dev enp0s3 lladdr 52:54:00:12:35:02 REACHABLE
         neighbours.append((neighbour[0], neighbour[4]))
 

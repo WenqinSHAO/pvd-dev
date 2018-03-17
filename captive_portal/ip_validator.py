@@ -8,21 +8,35 @@ OPER_DIR = "/tmp"
 NEIGHBOURS_LOCK_FILE = OPER_DIR + "/neighbours.lock"
 NEIGHBOURS_FILE = OPER_DIR + "/neighbours.json"
 IP_DB = OPER_DIR + "/ips.json"
+DOWNSTREAM_IF="test_br"
 
 cur_neighbours = set()
 
-def pipe_neighbours():
-    result=subprocess.Popen(['ip', 'neighbor'], stdout=subprocess.PIPE).stdout.read()    
-    resultStr=result.decode("ascii")
-    neighbours = dict()
-    # each neighbour is on a new line
-    for neighbour in map(lambda x : x.split(), resultStr.split("\n")):
-        if len(neighbour) < 5:
-            continue
-        # 10.0.2.2 dev enp0s3 lladdr 52:54:00:12:35:02 REACHABLE
-        neighbours[neighbour[0]] = neighbour[4]
+def build_remove_command(direction, interface, ip):
+    ip_tables_cmd=['iptables',
+                   '-D',
+                   'FORWARD']
+    if direction == "upstream":
+        ip_tables_cmd.append("-i")
+        ip_tables_cmd.append(interface)
+        ip_tables_cmd.append("-s")
+        ip_tables_cmd.append(ip)
+    else:
+        ip_tables_cmd.append("-o")
+        ip_tables_cmd.append(interface)
+        ip_tables_cmd.append("-d")
+        ip_tables_cmd.append(ip)
 
-    return neighbours
+    ip_tables_cmd.append("-j")
+    ip_tables_cmd.append("ACCEPT")
+    return ip_tables_cmd
+
+def remove_ip(ip):
+    remove_up=build_remove_command("upstream", DOWNSTREAM_IF, ip);
+    remove_down=build_remove_command("downstream", DOWNSTREAM_IF, ip);
+
+    subprocess.Popen(remove_up, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    subprocess.Popen(remove_down, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
 def read_neighbours():
     lock = FileLock(NEIGHBOURS_LOCK_FILE, timeout=5)
@@ -41,20 +55,12 @@ def read_neighbours():
     return set(map(lambda l : (l[0], l[1]), result)) 
 
 def remove_ips(ips_to_remove):
-    # fake database of ips allowed
-    try:
-        with open(IP_DB, "r+") as ip_db:
-            existing_ips=set(json.load(ip_db))
-            new_set = existing_ips - ips_to_remove
-            ip_db.seek(0)
-            ip_db.truncate()
-            json.dump(list(new_set), ip_db)
-    except FileNotFoundError:
-        pass # if the file isn't there, it can't have anything in it!
-    except json.decoder.JSONDecodeError:
-        pass # file is corrupt. Sad.
+    for ip in ips_to_remove:
+        remove_ip(ip)
 
-while True:
+def remove_stale_ips():
+    global cur_neighbours
+
     neighbours_to_process = read_neighbours()
     
     # a neighbour is only in both if the ip and mac are the same. So, we cover the following cases:
@@ -73,4 +79,10 @@ while True:
 
     cur_neighbours = neighbours_to_process
 
+def process_requests():
+    pass
+
+while True:
+    remove_stale_ips()
+    process_requests()
     time.sleep(1)
