@@ -8,9 +8,30 @@ OPER_DIR = "/tmp"
 NEIGHBOURS_LOCK_FILE = OPER_DIR + "/neighbours.lock"
 NEIGHBOURS_FILE = OPER_DIR + "/neighbours.json"
 IP_DB = OPER_DIR + "/ips.json"
+REQUEST_LOCK_FILE = OPER_DIR + "/login_requests.lock"
+REQUEST_FILE = OPER_DIR + "/login_requests.json"
 DOWNSTREAM_IF="test_br"
 
 cur_neighbours = set()
+
+def build_allow_command(direction, interface, ip):
+    ip_tables_cmd=['iptables',
+                   '-I',
+                   'FORWARD']
+    if direction == "upstream":
+        ip_tables_cmd.append("-i")
+        ip_tables_cmd.append(interface)
+        ip_tables_cmd.append("-s")
+        ip_tables_cmd.append(ip)
+    else:
+        ip_tables_cmd.append("-o")
+        ip_tables_cmd.append(interface)
+        ip_tables_cmd.append("-d")
+        ip_tables_cmd.append(ip)
+
+    ip_tables_cmd.append("-j")
+    ip_tables_cmd.append("ACCEPT")
+    return ip_tables_cmd
 
 def build_remove_command(direction, interface, ip):
     ip_tables_cmd=['iptables',
@@ -30,6 +51,13 @@ def build_remove_command(direction, interface, ip):
     ip_tables_cmd.append("-j")
     ip_tables_cmd.append("ACCEPT")
     return ip_tables_cmd
+
+def allow_ip(ip):
+    allow_up=build_allow_command("upstream", DOWNSTREAM_IF, ip);
+    allow_down=build_allow_command("downstream", DOWNSTREAM_IF, ip);
+
+    subprocess.Popen(allow_up, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    subprocess.Popen(allow_down, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
 def remove_ip(ip):
     remove_up=build_remove_command("upstream", DOWNSTREAM_IF, ip);
@@ -79,8 +107,34 @@ def remove_stale_ips():
 
     cur_neighbours = neighbours_to_process
 
+def allow_requests(request_list):
+    for ip in request_list:
+        allow_ip(ip)
+
+def process_requests_unlocked():
+    try:
+        with open(REQUEST_FILE, "r+") as request_file:
+            result = json.load(request_file)
+            allow_requests(result)
+            request_file.seek(0)
+            request_file.truncate()
+    except FileNotFoundError:
+        print("File not found")
+        pass # if the file isn't there, it can't have anything in it!
+    except json.decoder.JSONDecodeError:
+        pass # file is corrupt. Sad. Should probably do something to indicate
+             # an error back to the requestor.
+
 def process_requests():
-    pass
+    lock = FileLock(REQUEST_LOCK_FILE, timeout=1)
+
+    try:
+        with lock:
+            process_requests_unlocked()
+    except Timeout:
+        print("Unable to aquite lock to read requests: '%s'" % REQUEST_LOCK_FILE)
+    except:
+        print("Unable to handle requests '%s'" % REQUEST_FILE)
 
 while True:
     remove_stale_ips()
