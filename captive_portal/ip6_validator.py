@@ -9,7 +9,7 @@ NEIGHBOURS_LOCK_FILE = OPER_DIR + "/neighbours6.lock"
 NEIGHBOURS_FILE = OPER_DIR + "/neighbours6.json"
 REQUEST_LOCK_FILE = OPER_DIR + "/login_requests6.lock"
 REQUEST_FILE = OPER_DIR + "/login_requests6.json"
-DOWNSTREAM_IF="test_br"
+DOWNSTREAM_IF="vr2e1"
 
 cur_neighbours = set()
 

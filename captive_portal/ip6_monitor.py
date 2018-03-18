@@ -7,7 +7,7 @@ from filelock import FileLock, Timeout
 OPER_DIR = "/tmp"
 NEIGHBOURS_LOCK_FILE = OPER_DIR + "/neighbours6.lock"
 NEIGHBOURS_FILE = OPER_DIR + "/neighbours6.json"
-DOWNSTREAM_IF="test_br"
+DOWNSTREAM_IF="ve1br0"
 
 def read_neighbours():
     result=subprocess.Popen(['ip', '-6', 'neighbor'], stdout=subprocess.PIPE).stdout.read()    

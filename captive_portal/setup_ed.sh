@@ -4,7 +4,7 @@ set -e
 echo 1 > /proc/sys/net/ipv4/ip_forward
 echo 1 > /proc/sys/net/ipv6/conf/all/forwarding
 
-downstream_if=test_br
+downstream_if=vr2e1
 
 # by default, block all traffic to and from the downstream interface
 iptables -I FORWARD -i $downstream_if -j REJECT
