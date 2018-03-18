@@ -4,7 +4,7 @@ This repository provides a series of abstraction/automation to facilate the envr
 
 Following steps will create an ubuntu VM with pvd kernel patch.
 Instructions are as well given on how to install on that VM other pvd related tools, especially pvdd, radvd, iproute2 and wireshark.
-Inter-operation with NEAT will be as well briefly explained. 
+Inter-operation with NEAT and capport will be as well briefly explained. 
 
 Table of Contents
 =================
@@ -436,10 +436,17 @@ In order to wire NEAT and pvdd together, [a http server](https://github.com/IPv6
 
 PvD-unaware but NEAT enabled hosts can thus talk to the above http server that is setup on a PvD-aware host to learn the full set of information conveyed in RA, along with other valude-added metrics. (Or it can as well talk to pvdd that subscribes to kernel for RA message and parses them.)
 
+### pvdd and capport
+[README redirection](captive_portal/README.md)
+
+TODO: breif description on capport and how it inter-operates with PvD
+
 ### Wireshark dissector 
 Last but not least, [Wireshark](https://github.com/IPv6-mPvD/wireshark.git) is as well made capable of parsing RA's containing PvD options.
 
 ## The whole picture
+TODO: add illustration for capport
+
 ```
         +------------------------------------------------------------------------------------------+
         |A PvD-aware Linux host                                                                    |
