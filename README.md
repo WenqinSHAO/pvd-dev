@@ -28,6 +28,7 @@ Table of Contents
     * [Fetching extra\-info](#fetching-extra-info)
     * [pvd\-aware glibc](#pvd-aware-glibc)
     * [pvdd and NEAT](#pvdd-and-neat)
+    * [pvdd and capport](#pvdd-and-capport)
     * [Wireshark dissector](#wireshark-dissector)
   * [__The whole picture__](#the-whole-picture)
 
