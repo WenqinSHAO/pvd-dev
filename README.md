@@ -3,13 +3,11 @@
 This repository provides a series of abstraction/automation to facilate the envrionement setting for multi-PvD related projects.
 
 Following steps will create an ubuntu VM with pvd kernel patch.
-Instructions are as well given on how to install on that VM other pvd related tools, especially pvdd, radvd, iproute2 and wireshark. 
+Instructions are as well given on how to install on that VM other pvd related tools, especially pvdd, radvd, iproute2 and wireshark.
+Inter-operation with NEAT will be as well briefly explained. 
 
 Table of Contents
 =================
-
-* [Multi\-PvD Development Environment](#multi-pvd-development-environment)
-* [Table of Contents](#table-of-contents)
   * [Warmup/Revision:](#warmuprevision)
   * [VM setting and kernel patching](#vm-setting-and-kernel-patching)
     * [Repository organization](#repository-organization)
@@ -31,7 +29,8 @@ Table of Contents
     * [pvd\-aware glibc](#pvd-aware-glibc)
     * [pvdd and NEAT](#pvdd-and-neat)
     * [Wireshark dissector](#wireshark-dissector)
-  * [The whole picture](#the-whole-picture)
+  * [__The whole picture__](#the-whole-picture)
+
 ## Warmup/Revision:
 If you know the answers to the following questions, please do skip this section ;)
 
@@ -49,9 +48,7 @@ It especially tends to happen with IPv6, for the sake of address aggregation and
 <a href="https://tools.ietf.org/html/draft-ietf-intarea-provisioning-domains-00">draft-ietf-intarea-provisioning-domains</a> specifies a way to provision host with multiple PvDs by introducing a new IPv6 Router Advertisment (RA) option.</p>
 <p>We as well modified <a href="https://github.com/IPv6-mPvD/radvd.git">radvd</a> and <a href="https://github.com/IPv6-mPvD/odhcpd">odhcpd</a> so that they can be configured to announce RA containing PvD option.</p>
 <p><a href="https://github.com/IPv6-mPvD/wireshark">Wireshark</a> is now as well made capable of parsing RA with PvD option. Debugging made esay.</p>
-<p>Host side, we deliver a <a href="https://github.com/IPv6-mPvD/pvd-linux-kernel-patch">linux kernel patch</a> to make the kernel aware of the PvD option in RA. Besides, an essential tool <a href="https://github.com/IPv6-mPvD/pvdd">pvdd</a> that organically groups configuration items of a single PvD together from various sources say RA and DHCP, is as well provided.</p>
-<p>For application developpers, a PvD-aware glibc now provides interfaces with which you can easily access PvD datatructures and bind your applications to a set of PvDs (so that the application uses the corresponding DNS servers , and that the kernel route the traffic appropriately). TODO: todo add glibc repository.</p>
-<p>TODO: one-liner for other projects as well.</p>
+<p>Host side, we deliver a <a href="https://github.com/IPv6-mPvD/pvd-linux-kernel-patch">linux kernel patch</a> to make the kernel aware of the PvD option in RA. Besides, an essential tool <a href="https://github.com/IPv6-mPvD/pvdd">pvdd</a> that organically groups configuration items of a single PvD together from various sources say RA and extra info from a json server over https.</p>
 </details>
 
 
@@ -170,7 +167,7 @@ While the VM is installing, let's download the kernel source code:
 
 Once finished, let's patch the kernel source.
 <!--There are two kernel patch branches implementing two slightly different PvD parsing behaviour:
-1. the default branch is _pvd-draft-01-sequential_, it implements the sequential parsing behaviour. ND6 options in PvD will be handled sequentially (as if the PvD option header were not there) along with ND6 options outside the PvD. For two RIOs toward a same destination prefixes yet with different priority, the one appears later in the RA message (not matter inside or outside PvD) will eventually be considerded by the kernel. The only expection is for RA header (when a flag set) and other ND6 options with no more than 1 presence, e.g. MTU. These settings in PvD will be eventually effective and overwrite those outside the PvD. To apply this branch: -->
+1. the default branch is _pvd-draft-01-sequential_, it implements the sequential parsing behaviour. ND6 options in PvD will be handled sequentially (as if the PvD option header were not there) along with ND6 options outside the PvD. For two RIOs toward a same destination prefixes yet with different priority, the one appears later in the RA message (no matter inside or outside PvD) will eventually be considerded by the kernel. The only expection is for RA header (when a flag set) and other ND6 options with no more than 1 presence, e.g. MTU. These settings in PvD will be eventually effective and overwrite those outside the PvD. To apply this branch: -->
 ```shell
 ./vms/linux-env.sh kernel patch
 ```
@@ -186,9 +183,9 @@ Then, let's compile the kernel and build .deb packages needed for kernel install
 ```
 This will take quite a while.
 Meantime, let's have a quick look at what does this kernel patch actually bring:
-1. It first modifies the IPv6 neighbour discovery option parser behaviour, so that it can understand what happens inside a PvD option. The parsing of an RA containing PvD that contains other RA options remains sequential, just as the original kernel parsing behaviour. More specifically ND6 options in PvD will be handled sequentially (as if the PvD option header were not there) along with ND6 options outside the PvD. For example, if we have two RIOs toward a same destination prefixes yet with different priority, the one appears later in the RA message (not matter inside or outside PvD) will eventually be considerded by the kernel. The only expection is RA header (when a flag set) and other ND6 options with no more than 1 presence, e.g. MTU. These settings in PvD will be eventually effective and overwrite those outside the PvD. 
-2. This PvD parsing behaviour can be easily turn on/off via option _net.ipv6.conf.<interface>.parse_pvd_ in sysctl. The default value is 1, which means on. This option is only effective when the interface accepts RA, that is _net.ipv6.conf.<interface>.accept_ra=1_.
-3. When applying learnt ND6 options in RAs, the patched kernel associates prefixes, routes, etc. to the corresponding PvD.
+1. It first modifies the IPv6 neighbour discovery option parser behaviour, so that it can understand what happens inside a PvD option. The parsing of an RA containing PvD that contains other RA options remains sequential, just as the original kernel parsing behaviour. More specifically ND6 options in PvD will be handled sequentially (as if the PvD option header were not there) along with ND6 options outside the PvD. For example, if we have two RIOs toward a same destination prefixes yet with different priority, the one appears later in the RA message (no matter inside or outside PvD) will eventually be considerded by the kernel. The only expection is RA header (when a flag set) and other ND6 options with no more than 1 presence, e.g. MTU. These settings in PvD will be eventually effective and overwrite those outside the PvD. 
+2. This PvD parsing behaviour can be easily turn on/off via option _net.ipv6.conf.\<interface\>.parse_pvd_ in sysctl. The default value is 1, which means on. This option is only effective when the interface accepts RA, that is _net.ipv6.conf.\<interface\>.accept_ra=1_.
+3. When applying learnt ND6 options in RAs, the patched kernel associates prefixes, routes(RIO and route to PIO prefix and default route), etc. to the corresponding PvD.
 4. New RTNETLINK messages are defined for the anouncements of PvD creation, attributes updates, etc.
 5. New getsockopt/setsockopt options are defined to allow the query and modification of PvD datastructure from userspace. 
 6. A process/thread/socket can be bound to a specific PvD (via setsockopt), while obliges the kernel making consistent route and saddr selection.
@@ -221,7 +218,7 @@ The boot-from-optical-driver command is pretty handy, when you screw up the grub
 Once we have prepared a VM with PvD kernel patch, we can then explore how the endhosts behave in a multi-prefix IPv6 network.
 Please git clone this project repository as well on the VM (no longer on the host machine).
 We are going to rely on [./vms/play-pvd.sh](./vms/play-pvd.sh) for the following steps.
-For following steps, please selected the PvD-aware kernel in grub menu when booting the VM.
+Please selected the PvD-aware kernel in grub menu when booting the VM.
 
 ### Repository organization and settings
 After the operations in this section, which happen inside the VM, we'd expect to see a repo organization as follows:
@@ -230,11 +227,11 @@ After the operations in this section, which happen inside the VM, we'd expect to
 ├── README.md
 ├── ra_config /* where config for radvd is stored */
 ├── radvd /* where pvd-aware radvd src is downloaded and its binary compiled */
-├── iproute  /* where the pvd-aware iproute2 src is downloaded and binary its compiled */
+├── iproute  /* where the pvd-aware iproute2 src is downloaded and its binary compiled */
 ├── scripts /* where some utility functions are stored */
 │   └── bootstrap.sh
 └── vms
-    ├── linux-env.sh /* the script for VM setup and kernek patch */
+    ├── linux-env.sh /* the script for VM setup and kernel patch */
     ├── play-pvd.sh  /* the script for mPvD provisioning and inspection */
     └── preseed.cfg
 
@@ -330,7 +327,6 @@ These configuered RA can be sent with the following command:
 ```
 
 ### Inspect network settings
-TODO: modify the output according to the new parsing behaviour
 
 Once RAs are sent, it is time to inspect whether the hosts are correctly provisioned in this multiple-prefix environment.
 We provide _show_ option as a shorthand to inspect network configurations in certain network namespaces.
@@ -340,7 +336,7 @@ NAME_OF_NETWORK_NAMESPACE := {router|host_classic|host_pvd}
 OBJECT := {address|link|route}
 ```
 
-For example, the following command shows the IPv6 addresses configred in __host\_pvd__ network namespace.
+For example, the following command shows the IPv6 addresses configured in __host\_pvd__ network namespace.
 ```shell
 ./vms/play-pvd.sh show host_pvd addr
 ```
@@ -386,6 +382,7 @@ default via fe80::1cdc:b4ff:feab:c7c2 dev eh0 proto ra metric 1024 expires 65406
 In the above routing table, we can as well notice that the defualt router preference to that sends out RAs containing pvd test2.example.com is set to low. This router preference is actually overwriten by the RA header embeded in PvD option when A-flag is set.
 
 ### pvdd
+<!--TODO: 1/ make pvdd capable of parsing the draft-01 PvD; 2/ add installation notes for pvd-monitor, pvdhttpserver in pvd-demo and json server in pvdd/tests-->
 [pvdd](https://github.com/IPv6-mPvD/pvdd.git) is an userspace application that needs to be run on the host side.
 ```
 $ sudo ip netns exec host_pvd pvdd -v
@@ -425,8 +422,8 @@ The consistent usage of source address and route is implemented by the kernel pa
 As for the selection of name server, we bring forth a patch for [glibc](https://github.com/IPv6-mPvD/glibc).
 
 With this patch, up on a getaddrinfo call from an application, glibc will
-1. find out to which PvD the socket/thread/process is bound to through the getsockopt call wraped by libpvd.so/libpvd.h;
-2. then it connects to pvdd to retrivel the list of rdnss attached to this PvD;
+1. find out which PvD the socket/thread/process is bound to through the getsockopt call wraped in libpvd.so/libpvd.h;
+2. then it connects to pvdd to retrive the list of rdnss attached to this PvD;
 3. finally glibc makes name queries to the servers and reley the responds to the application.
 
 In the tests folder of our [glibc](https://github.com/IPv6-mPvD/glibc) repo, we provide as well multiple examples to showcase the name resolutin under PvD binding.
@@ -437,7 +434,7 @@ In the tests folder of our [glibc](https://github.com/IPv6-mPvD/glibc) repo, we 
 In multi-homed IPv6 networks provisioned with PvDs in RA, an important source of network service infromation is thus pvdd that is presented here above.
 In order to wire NEAT and pvdd together, [a http server](https://github.com/IPv6-mPvD/pvd-demo/blob/master/pvd-html-client/pvdHttpServer.js) is put in place to expose a series of REST APIs and a web page for the query of PvDs and their attributes.
 
-PvD-unaware but NEAT enabled hosts can thus talk to the above http server that is setup on a PvD-aware host to learn the full set of information conveyed in RA, along with other valude-added metrics.
+PvD-unaware but NEAT enabled hosts can thus talk to the above http server that is setup on a PvD-aware host to learn the full set of information conveyed in RA, along with other valude-added metrics. (Or it can as well talk to pvdd that subscribes to kernel for RA message and parses them.)
 
 ### Wireshark dissector 
 Last but not least, [Wireshark](https://github.com/IPv6-mPvD/wireshark.git) is as well made capable of parsing RA's containing PvD options.

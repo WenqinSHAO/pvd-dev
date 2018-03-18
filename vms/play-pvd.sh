@@ -145,9 +145,11 @@ function network_setup {
     sudo ip netns exec router sysctl -w net.ipv6.conf.rt2.accept_ra=0
     # turn on/off pvd parsing and route pref option on host
     sudo ip netns exec host_pvd sysctl -w net.ipv6.conf.eh0.parse_pvd=1
+    sudo ip netns exec host_pvd sysctl -w net.ipv6.conf.eh0.accept_ra_pinfo=1
     sudo ip netns exec host_pvd sysctl -w net.ipv6.conf.eh0.accept_ra_rtr_pref=1
     sudo ip netns exec host_pvd sysctl -w net.ipv6.conf.eh0.accept_ra_rt_info_max_plen=64
     sudo ip netns exec host_classic sysctl -w net.ipv6.conf.eh1.parse_pvd=0
+    sudo ip netns exec host_classic sysctl -w net.ipv6.conf.eh1.accept_ra_pinfo=1
     sudo ip netns exec host_classic sysctl -w net.ipv6.conf.eh1.accept_ra_rtr_pref=1
     sudo ip netns exec host_classic sysctl -w net.ipv6.conf.eh1.accept_ra_rt_info_max_plen=64
     # turn of ra acceptance on bridge interface
