@@ -8,9 +8,6 @@ Inter-operation with NEAT will be as well briefly explained.
 
 Table of Contents
 =================
-
-* [Multi\-PvD Development Environment](#multi-pvd-development-environment)
-* [Table of Contents](#table-of-contents)
   * [Warmup/Revision:](#warmuprevision)
   * [VM setting and kernel patching](#vm-setting-and-kernel-patching)
     * [Repository organization](#repository-organization)
@@ -32,7 +29,8 @@ Table of Contents
     * [pvd\-aware glibc](#pvd-aware-glibc)
     * [pvdd and NEAT](#pvdd-and-neat)
     * [Wireshark dissector](#wireshark-dissector)
-  * [The whole picture](#the-whole-picture)
+  * [__The whole picture__](#the-whole-picture)
+
 ## Warmup/Revision:
 If you know the answers to the following questions, please do skip this section ;)
 
@@ -50,9 +48,7 @@ It especially tends to happen with IPv6, for the sake of address aggregation and
 <a href="https://tools.ietf.org/html/draft-ietf-intarea-provisioning-domains-00">draft-ietf-intarea-provisioning-domains</a> specifies a way to provision host with multiple PvDs by introducing a new IPv6 Router Advertisment (RA) option.</p>
 <p>We as well modified <a href="https://github.com/IPv6-mPvD/radvd.git">radvd</a> and <a href="https://github.com/IPv6-mPvD/odhcpd">odhcpd</a> so that they can be configured to announce RA containing PvD option.</p>
 <p><a href="https://github.com/IPv6-mPvD/wireshark">Wireshark</a> is now as well made capable of parsing RA with PvD option. Debugging made esay.</p>
-<p>Host side, we deliver a <a href="https://github.com/IPv6-mPvD/pvd-linux-kernel-patch">linux kernel patch</a> to make the kernel aware of the PvD option in RA. Besides, an essential tool <a href="https://github.com/IPv6-mPvD/pvdd">pvdd</a> that organically groups configuration items of a single PvD together from various sources say RA and DHCP, is as well provided.</p>
-<p>For application developpers, a PvD-aware glibc now provides interfaces with which you can easily access PvD datatructures and bind your applications to a set of PvDs (so that the application uses the corresponding DNS servers , and that the kernel route the traffic appropriately). TODO: todo add glibc repository.</p>
-<p>TODO: one-liner for other projects as well.</p>
+<p>Host side, we deliver a <a href="https://github.com/IPv6-mPvD/pvd-linux-kernel-patch">linux kernel patch</a> to make the kernel aware of the PvD option in RA. Besides, an essential tool <a href="https://github.com/IPv6-mPvD/pvdd">pvdd</a> that organically groups configuration items of a single PvD together from various sources say RA and extra info from a json server over https.</p>
 </details>
 
 
