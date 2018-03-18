@@ -426,8 +426,8 @@ As for the selection of name server, we bring forth a patch for [glibc](https://
 
 With this patch, up on a getaddrinfo call from an application, glibc will
 1. find out to which PvD the socket/thread/process is bound to through the getsockopt call wraped by libpvd.so/libpvd.h;
-2. then it connects to pvdd to retrivel the list of rdnss lists attached to this PvD;
-3. make name queries to the servers and reley the responds to the application.
+2. then it connects to pvdd to retrivel the list of rdnss attached to this PvD;
+3. finally glibc makes name queries to the servers and reley the responds to the application.
 
 In the tests folder of our [glibc](https://github.com/IPv6-mPvD/glibc) repo, we provide as well multiple examples to showcase the name resolutin under PvD binding.
 
@@ -440,10 +440,11 @@ In order to wire NEAT and pvdd together, [a http server](https://github.com/IPv6
 PvD-unaware but NEAT enabled hosts can thus talk to the above http server that is setup on a PvD-aware host to learn the full set of information conveyed in RA, along with other valude-added metrics.
 
 ### Wireshark dissector 
-Last of not least, [Wireshark](https://github.com/IPv6-mPvD/wireshark.git) is as well made capable of parsing RA's containing PvD options.
+Last but not least, [Wireshark](https://github.com/IPv6-mPvD/wireshark.git) is as well made capable of parsing RA's containing PvD options.
 
 ## The whole picture
-```+------------------------------------------------------------------------------------------+
+```
++------------------------------------------------------------------------------------------+
 |A PvD-aware Linux host                                                                    |
 |                                                                                          |
 |                                                                                          |
@@ -460,8 +461,8 @@ Last of not least, [Wireshark](https://github.com/IPv6-mPvD/wireshark.git) is as
 |         |       +--+-------+--+    |       +-------+-------+                             |          +-----------------------------+
 |         |          |       |       |               |                                     |
 |         |          |    +--+-------+---------------+-------+       +----------------+    |          +-----------------------------+
-|         |          |    |               pvdd               +-------+   pvd|monitor  +---------------+ pvd additional info server  |
-|         |          |    +-----------------+----------------+       +----------------+    |          | (capti^e portal, perf, etc) |
+|         |          |    |               pvdd               +-------+   pvd-monitor  +---------------+ pvd additional info server  |
+|         |          |    +-----------------+----------------+       +----------------+    |          | (captive portal, perf, etc) |
 |         |          |                      |                                              |          +-----------------------------+
 +------------------------------------------------------------------------------------------+
 |         +          +                      +                                              |
