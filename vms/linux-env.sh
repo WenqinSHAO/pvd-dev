@@ -30,16 +30,16 @@ VM_VNC_PORT=12250
 VM_MNGMT_PORT=12350
 
 # where to fetch the installation image for ubuntu
-UBUNTU_ISO=http://archive.ubuntu.com/ubuntu/dists/artful/main/installer-amd64/current/images/netboot/mini.iso
+UBUNTU_ISO=http://www.archive.ubuntu.com/ubuntu/dists/bionic/main/installer-amd64/current/images/netboot/mini.iso
 UBUNTU_MIRROR=""
-UBUNTU_KERNEL_GIT=git://kernel.ubuntu.com/ubuntu/ubuntu-zesty.git
+UBUNTU_KERNEL_GIT=git://kernel.ubuntu.com/ubuntu/ubuntu-bionic.git
 
 # where we put the kernel source code
 KERNEL_SRC_DIR=$ROOT/src/linux-env/
 # where we put the kernel patch
 KERNEL_PATCH_DIR=$ROOT/src/pvd-kernel-patch/
 # the default kernel local version after patching
-KERNEL_LOCAL_VERSION="pvd-container-conflict-replace"
+KERNEL_LOCAL_VERSION="pvd-01"
 
 # VM setting
 PRESEED_FILE=$CD/preseed.cfg
@@ -47,7 +47,8 @@ PRESEED_CUSTOM_FILE=$CD/preseed-custom.cfg
 
 # where to fetch path and other pvd related projects
 # TODO: change to the official repo once pull request accepted
-PVD_KERNEL_PATCH=https://github.com/IPv6-mPvD/pvd-linux-kernel-patch.git
+PVD_KERNEL_PATCH=https://github.com/WenqinSHAO/pvd-linux-kernel-patch.git
+PVD_KERNEL_PATCH_BRANCH="pvd-draft-01-k415"
 
 scl_cmd_add install dep install_dep
 function install_dep {
@@ -83,19 +84,14 @@ function patch_kernel {
 	fi
 
 	# switch to the right branch
-	# the default one implements sequential parsing behaviour
-	local branch='pvd-draft-01'
-	# if [[ ! -z $1 &&  $1 = *'replace'* ]]; then
-	#	branch="pvd-draft-01-conflict-replace"
-	# fi
 	cd $KERNEL_PATCH_DIR
-	git checkout $branch 
+	git checkout $PVD_KERNEL_PATCH_BRANCH
 
 	# then patch
 	if [ -d $KERNEL_SRC_DIR/linux-ubuntu ]; then
 		clean_kernel
 		cd $KERNEL_SRC_DIR/linux-ubuntu
-		patch -p1 < $KERNEL_PATCH_DIR/patch* 
+		patch -p1 < $KERNEL_PATCH_DIR/*.diff 
 	else
 		echo "Kernel source is absent at $KERNEL_SRC_DIR/linux-ubuntu, patching failed." 
 		echo "Please consider first dowload it using option: $0 kernel download." 
@@ -118,16 +114,16 @@ function clean_kernel {
 scl_cmd_add kernel config configure_kernel
 function configure_kernel {
 	# this function configures the kernel
-	# it seems the kernel config can be already done with proper kernel patch?
-	# Yes if the patch adds .config file, add set it correctly
 	cd $KERNEL_SRC_DIR/linux-ubuntu
-	if [ -f .config ]; then
+	if [ -f $KERNEL_PATCH_DIR/config* ]; then
 		echo "Set local kernel version to $KERNEL_LOCAL_VERSION and enable pvd"
+		cp $KERNEL_PATCH_DIR/config* .config
 		make olddefconfig
+		# the following two settings shall be already done in the above reference config file
 		sed -i "s/^CONFIG_LOCALVERSION.*/CONFIG_LOCALVERSION=\"$KERNEL_LOCAL_VERSION\"/" .config
 		sed -i 's/^CONFIG_NETPVD.*/CONFIG_NETPVD=y/' .config
 	else
-		echo "Something must have gone wrong with the kernel patching" && cd $CD && return 1
+		echo "Please patch the kernel before configuration" && cd $CD && return 1
 	fi
 
 	cd $CD
