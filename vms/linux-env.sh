@@ -117,6 +117,7 @@ function configure_kernel {
 	cd $KERNEL_SRC_DIR/linux-ubuntu
 	if [ -f $KERNEL_PATCH_DIR/config* ]; then
 		echo "Set local kernel version to $KERNEL_LOCAL_VERSION and enable pvd"
+		cp debian/scripts/retpoline-extract-one scripts/ubuntu-retpoline-extract-one
 		cp $KERNEL_PATCH_DIR/config* .config
 		make olddefconfig
 		# the following two settings shall be already done in the above reference config file
