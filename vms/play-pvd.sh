@@ -129,10 +129,9 @@ function network_setup {
     sudo ip netns exec router ip link set dev lo up
     # TCP UDP server listens on these addresses on the dummy interface
     sudo ip netns exec router ip link add dev dummy0 type dummy
-    sudo ip netns exec router ip addr add 2001:1111:1111::8888/128 dev dummy0
-    sudo ip netns exec router ip addr add 2001:1111:1111::8844/128 dev dummy0
-    sudo ip netns exec router ip addr add 2001:2222:2222::2/128 dev dummy0
-    sudo ip netns exec router ip link set dev dummy0 up
+    sudo ip netns exec router ip addr add 2001:1111:1111::8888 dev dummy0
+    sudo ip netns exec router ip addr add 2001:1111:1111::8844 dev dummy0
+    sudo ip netns exec router ip addr add 2001:2222:2222::2 dev dummy0
     # these static routes need to be changed in accordance to RA announces
     sudo ip netns exec router ip route add 2001:db8:1::/64 dev rt0
     sudo ip netns exec router ip route add 2001:db8:1:beef::/64 dev rt0
@@ -143,6 +142,8 @@ function network_setup {
     sudo ip netns exec router sysctl -w net.ipv6.conf.rt0.accept_ra=0
     sudo ip netns exec router sysctl -w net.ipv6.conf.rt1.accept_ra=0
     sudo ip netns exec router sysctl -w net.ipv6.conf.rt2.accept_ra=0
+    # seems to be necessary
+    sudo ip netns exec router sysctl -w net.ipv6.conf.all.forwarding=1
     # turn on/off pvd parsing and route pref option on host
     sudo ip netns exec host_pvd sysctl -w net.ipv6.conf.eh0.parse_pvd=1
     sudo ip netns exec host_pvd sysctl -w net.ipv6.conf.eh0.accept_ra_pinfo=1
