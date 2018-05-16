@@ -162,6 +162,113 @@ function network_setup {
     sudo sysctl -w net.ipv6.conf.brif4.accept_ra=0
 }
 
+# TODO: generic setup automation from a config file
+# pvd aware host have multiple interfaces, via which different sets of RAs are received
+scl_cmd_add setup_multi network_setup_multi
+function network_setup_multi {
+    # separate router and endhost in two network namespaces
+    sudo ip netns add host  # pvd parsing enabled
+    sudo ip netns add router
+    sudo ip netns add server
+    
+    # first creat the bridge between the endhost and the router
+    sudo brctl addbr wifi
+    sudo brctl addbr cable
+    
+    # veth pair between host_pvd and the bridges
+    sudo ip link add host-wifi type veth peer name wifi-0
+    sudo ip link add host-cable type veth peer name cable-0
+    # veth pair between router and the bridges
+    sudo ip link add router-wifi0 type veth peer name wifi-1
+    sudo ip link add router-wifi1 type veth peer name wifi-2
+    sudo ip link add router-cable0 type veth peer name cable-1
+    sudo ip link add router-cable1 type veth peer name cable-2
+    # veth pair between router and the server
+    sudo ip link add router-server type veth peer name server-router
+    
+    # add brif* to the bridges
+    sudo brctl addif wifi wifi-0
+    sudo brctl addif wifi wifi-1
+    sudo brctl addif wifi wifi-2
+    sudo brctl addif cable cable-0
+    sudo brctl addif cable cable-1
+    sudo brctl addif cable cable-2
+    # add the other side the veth pair to corresponding network namespaces
+    sudo ip link set host-wifi netns host
+    sudo ip link set host-cable netns host
+    sudo ip link set router-wifi0 netns router
+    sudo ip link set router-wifi1 netns router
+    sudo ip link set router-cable0 netns router
+    sudo ip link set router-cable1 netns router
+    sudo ip link set router-server netns router
+    sudo ip link set server-router netns server
+    
+    # turn up the devices
+    sudo ip link set wifi up
+    sudo ip link set cable up
+    sudo ip link set wifi-0 up
+    sudo ip link set wifi-1 up
+    sudo ip link set wifi-2 up
+    sudo ip link set cable-0 up
+    sudo ip link set cable-1 up
+    sudo ip link set cable-2 up
+
+    sudo ip netns exec router ip link set router-wifi0 up
+    sudo ip netns exec router ip link set router-wifi1 up
+    sudo ip netns exec router ip link set router-cable0 up
+    sudo ip netns exec router ip link set router-cable1 up
+    sudo ip netns exec router ip link set router-server up
+    sudo ip netns exec router ip link set dev lo up
+
+    sudo ip netns exec server ip link set server-router up
+    sudo ip netns exec server ip link set dev lo up
+
+    sudo ip netns exec host ip link set host-wifi up
+    sudo ip netns exec host ip link set host-cable up
+    sudo ip netns exec host ip link set dev lo up
+
+    # Servring addresss and default route on server
+    sudo ip netns exec server ip addr add 2001:3::13/64 dev server-router
+    sudo ip netns exec server ip link add dev dummy0 type dummy
+    sudo ip netns exec server ip addr add 2001:db8:1111::8888 dev dummy0
+    sudo ip netns exec server ip addr add 2001:db8:2222::8888 dev dummy0
+    sudo ip netns exec server ip route add default via 2001:3::1
+
+    # routes on router
+    sudo ip netns exec router ip addr add 2001:3::1/64 dev router-server
+    sudo ip netns exec router ip route add 2001:db8:100A::/64 dev router-wifi0
+    sudo ip netns exec router ip route add 2001:db8:1000::/64 dev router-wifi0
+    sudo ip netns exec router ip route add 2001:db8:100B::/64 dev router-cable0
+    sudo ip netns exec router ip route add 2001:db8:1001::/64 dev router-cable0
+    sudo ip netns exec router ip route add 2001:db8:2000::/64 dev router-cable1
+    sudo ip netns exec router ip route add default via 2001:3::13
+
+    # disable RA acceptance on bridge, router and server interfaces
+    # https://unix.stackexchange.com/questions/90443/sysctl-proc-sys-net-ipv46-conf-whats-the-difference-between-all-defau
+    sudo sysctl -w net.ipv6.conf.wifi.accept_ra=0
+    sudo sysctl -w net.ipv6.conf.wifi-0.accept_ra=0
+    sudo sysctl -w net.ipv6.conf.wifi-1.accept_ra=0
+    sudo sysctl -w net.ipv6.conf.wifi-2.accept_ra=0
+    sudo sysctl -w net.ipv6.conf.cable.accept_ra=0
+    sudo sysctl -w net.ipv6.conf.cable-0.accept_ra=0
+    sudo sysctl -w net.ipv6.conf.cable-1.accept_ra=0
+    sudo sysctl -w net.ipv6.conf.cable-2.accept_ra=0
+    sudo ip netns exec router sysctl -w net.ipv6.conf.router-server.accept_ra=0
+    sudo ip netns exec router sysctl -w net.ipv6.conf.router-wifi0.accept_ra=0
+    sudo ip netns exec router sysctl -w net.ipv6.conf.router-wifi1.accept_ra=0
+    sudo ip netns exec router sysctl -w net.ipv6.conf.router-cable0.accept_ra=0
+    sudo ip netns exec router sysctl -w net.ipv6.conf.router-cable1.accept_ra=0
+    sudo ip netns exec server sysctl -w net.ipv6.conf.server-router.accept_ra=0
+    
+    # enable forwarding for router and server
+    sudo ip netns exec router sysctl -w net.ipv6.conf.all.forwarding=1
+    sudo ip netns exec server sysctl -w net.ipv6.conf.all.forwarding=1
+
+    # turn on pvd parsing and route pref option on host
+    sudo ip netns exec host sysctl -w net.ipv6.conf.host-wifi.accept_ra_rt_info_max_plen=64
+    sudo ip netns exec host sysctl -w net.ipv6.conf.host-cable.accept_ra_rt_info_max_plen=64 
+}
+
 scl_cmd_add cleanup network_reset
 function network_reset {
     # it seems deleting the network namespace will as well delete the contaning devices
@@ -190,6 +297,19 @@ function network_reset {
 
     sudo ip link set brpvd down 2>&1 || true
     sudo ip link delete brpvd 2>&1 || true
+}
+
+scl_cmd_add cleanup_multi network_reset_multi
+function network_reset_multi {
+    
+    sudo ip netns delete host 2>&1 || true
+    sudo ip netns delete router 2>&1 || true
+    sudo ip netns delete server  2>&1 || true
+
+    sudo ip link set wifi down 2>&1 || true
+    sudo ip link delete wifi 2>&1 || true
+    sudo ip link set cable down 2>&1 || true
+    sudo ip link delete cable 2>&1 || true
 }
 
 scl_cmd_add send ra send_ra 
